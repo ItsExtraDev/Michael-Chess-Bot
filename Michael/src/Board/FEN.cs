@@ -57,16 +57,12 @@ namespace Michael.src
                 {
                     int square = rank * 8 + file; // Calculate 0-based square index from rank and file
                     bool isWhite = char.IsUpper(letter); // Uppercase letter = white piece
-
                     int pieceType = Piece.SymbolToPieceType(letter); // Convert symbol to piece type
                     int piece = Piece.CreatePiece(pieceType, isWhite); // Create piece code combining type and color
-
-                    int bitboardIndex = BitboardHelpers.GetBitboardIndex(pieceType, isWhite); // Find bitboard index for piece
+                    int bitboardIndex = BitboardHelper.GetBitboardIndex(pieceType, isWhite); // Find bitboard index for piece
                     ref ulong bitboard = ref board.PiecesBitboards[bitboardIndex];
-
                     board.Squares[square] = piece; // Place piece on board square
-                    BitboardHelpers.ToggleBit(ref bitboard, square); // Set corresponding bit in bitboard
-
+                    BitboardHelper.ToggleBit(ref bitboard, square); // Set corresponding bit in bitboard
                     file++; // Move to next file (column)
 
                 }

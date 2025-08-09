@@ -4,7 +4,7 @@
     /// Provides helper methods for working with bitboards,
     /// including calculating bitboard indexes and manipulating individual bits.
     /// </summary>
-    public static class BitboardHelpers
+    public static class BitboardHelper
     {
         /// <summary>
         /// Calculates the index of the bitboard for a given piece type and color.
@@ -13,7 +13,7 @@
         /// <param name="color">The color of the piece (White or Black).</param>
         /// <returns>The index corresponding to the bitboard for the specified piece type and color.</returns>
         public static int GetBitboardIndex(int pieceType, int color)
-            => (color * 6) + pieceType;
+            => (color * 6) + pieceType - 1;
 
         /// <summary>
         /// Calculates the index of the bitboard for a given piece type and color, using a boolean for color.

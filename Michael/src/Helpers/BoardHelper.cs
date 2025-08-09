@@ -29,13 +29,24 @@
         /// <param name="board"></param>
         public static void PrintBoard(Board board)
         {
+            Console.WriteLine(" +---+---+---+---+---+---+---+---+");
             for (int rank = 7; rank >= 0; rank--)
             {
+                Console.Write(" | ");
                 for (int file = 0; file < 8; file++)
                 {
+                    int square = rank * 8 + file;
+                    int piece = board.Squares[square];
+                    int pieceType = Piece.PieceType(piece);
+                    char Symbol = Piece.PieceTypeToSymbol(pieceType);
+                    Symbol = Piece.IsWhite(piece) ? char.ToUpper(Symbol) : char.ToLower(Symbol);
 
+                    Console.Write(Symbol + " | ");
                 }
+                Console.WriteLine((rank + 1));
+                Console.WriteLine(" +---+---+---+---+---+---+---+---+");
             }
+            Console.WriteLine("   a   b   c   d   e   f   g   h");
         }
     }
 }

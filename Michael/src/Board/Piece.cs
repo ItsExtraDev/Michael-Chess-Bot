@@ -121,7 +121,8 @@ namespace Michael.src
                 Bishop => 'B',
                 Rook => 'R',
                 Queen => 'Q',
-                King => 'K'
+                King => 'K',
+                _ => ' '
             };
         }
     }

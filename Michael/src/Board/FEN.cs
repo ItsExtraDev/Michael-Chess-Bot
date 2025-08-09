@@ -67,6 +67,8 @@ namespace Michael.src
 
                 }
             }
+
+            board.ColorToMove = fenParts[1] == "w" ? Piece.White : Piece.Black; // Set color to move
         }
     }
 }

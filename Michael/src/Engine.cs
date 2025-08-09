@@ -1,0 +1,72 @@
+﻿using Michael.src.Helpers;
+using Michael.src.MoveGen;
+
+namespace Michael.src
+{
+    /// <summary>
+    /// This class serves as the main connection between the chess engine itself, the logic of the game,
+    /// and the GUI. It is responsible for initializing the game state, managing the board, making moves
+    /// and communicating with the GUI via the Universal Chess Interface (UCI).
+    /// </summary>
+    public static class Engine
+    {
+        //Main board instance of the engine.
+        //Any class the uses the board would call this one board instance.
+        public static Board board;
+
+        /// <summary>
+        /// Initializes the chess engine by starting a new game with the default starting position.
+        /// </summary>
+        public static void Init()
+        { 
+            StartNewGame();
+        }
+
+        /// <summary>
+        /// Initializes the chess engine, setting up the board and any necessary game state.
+        /// Loads the starting position by default, but can be changed by giving a FEN string.
+        /// </summary>
+        public static void StartNewGame(string fenString = FEN.StartingFEN)
+        {
+            board = new Board(fenString);
+        }
+
+        /// <summary>
+        /// Loads the board from a position command from the GUI.
+        /// </summary>
+        public static void LoadBoardFromPositionCommand(string[] commandTokens)
+        {
+            //The first token that is a move we should play
+            int startingMoveIndex = 3;
+
+            if (commandTokens[1] == "startpos")
+            {
+                //If the command is "startpos", load the starting position.
+                StartNewGame();
+            }
+            else if (commandTokens[1] == "fen")
+            {
+                //If the command is "fen", load the position from the FEN string provided.
+                if (commandTokens.Length > 2)
+                {
+                    string fenString = string.Join(" ", commandTokens.Skip(2).Take(6));
+                    StartNewGame(fenString);
+                    startingMoveIndex = 9;
+                }
+            }
+            else
+            {
+                return; // Invalid command, do nothing
+            }
+
+            for (int index = startingMoveIndex; index < commandTokens.Length; index++)
+            {
+                //Make each move in the position command.
+                string moveString = commandTokens[index];
+                Move move = Notation.AlgebraicToMove(moveString);
+
+                board.MakeMove(move);
+            }
+        }
+    }
+}

@@ -42,5 +42,17 @@
         {
             Bitboard ^= 1UL << bitIndex;
         }
+
+        /// <summary>
+        /// Move the piece in the bitboard from squareA to squareB.
+        /// </summary>
+        /// <param name="Bitboard"></param>
+        /// <param name="square1"></param>
+        /// <param name="square2"></param>
+        public static void MovePiece(ref ulong Bitboard, int squareA, int squareB)
+        {
+            ToggleBit(ref Bitboard, squareA);
+            ToggleBit(ref Bitboard, squareB);
+        }
     }
 }

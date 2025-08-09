@@ -32,6 +32,7 @@ public static class UCI
                 break;
 
             case "position":
+                Engine.LoadBoardFromPositionCommand(tokens);
                 break;
 
             case "go":
@@ -48,7 +49,7 @@ public static class UCI
 
             // Debug commands
             case "d":
-                BoardHelper.PrintBoard(new Board());
+                BoardHelper.PrintBoard(Engine.board);
                 break;
 
             default:

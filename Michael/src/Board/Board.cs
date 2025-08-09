@@ -1,4 +1,7 @@
-﻿namespace Michael.src
+﻿using Michael.src.Helpers;
+using Michael.src.MoveGen;
+
+namespace Michael.src
 {
     /// <summary>
     /// Represents the main board class in the chess engine.
@@ -40,6 +43,9 @@
         /// </summary>
         public int[] Squares = new int[64];
 
+        //Current turn of the game.
+        public int ColorToMove;
+
         /// <summary>
         /// Instantiates a board and automatically loads the starting position.
         /// The position can be changed by passing a custom FEN string.
@@ -57,6 +63,25 @@
         private void LoadFen(string fenString)
         {
             FEN.LoadFEN(this, fenString);
+        }
+
+        /// <summary>
+        /// Makes a move on the board. updates bitboards and square array.
+        /// </summary>
+        /// <param name="move"></param>
+        public void MakeMove(Move move)
+        {
+            int movingPiece = Squares[move.StartingSquare];
+            int movingPieceType = Piece.PieceType(movingPiece);
+            int movingBitboardIndex = BitboardHelper.GetBitboardIndex(movingPieceType, ColorToMove);
+            ref ulong movingBitboard = ref PiecesBitboards[movingBitboardIndex];
+
+            Squares[move.StartingSquare] = Piece.None; // Clear the starting square
+            Squares[move.TargetSquare] = movingPiece; // Place the piece on the target square
+            BitboardHelper.MovePiece(ref movingBitboard, move.StartingSquare, move.TargetSquare); // Update the bitboard
+            BitboardHelper.MovePiece(ref ColoredBitboards[ColorToMove], move.StartingSquare, move.TargetSquare); // Update the colored bitboard
+
+            //TODO capture logic, promotion logic, en passant logic, etc.
         }
     }
 }

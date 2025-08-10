@@ -63,6 +63,7 @@ namespace Michael.src
                     ref ulong bitboard = ref board.PiecesBitboards[bitboardIndex];
                     board.Squares[square] = piece; // Place piece on board square
                     BitboardHelper.ToggleBit(ref bitboard, square); // Set corresponding bit in bitboard
+                    BitboardHelper.ToggleBit(ref board.ColoredBitboards[isWhite ? Piece.White : Piece.Black], square); // Set colored bitboard
                     file++; // Move to next file (column)
 
                 }

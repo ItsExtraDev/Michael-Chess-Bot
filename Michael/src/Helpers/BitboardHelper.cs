@@ -1,4 +1,6 @@
-﻿namespace Michael.src.Helpers
+﻿using System.Numerics;
+
+namespace Michael.src.Helpers
 {
     /// <summary>
     /// Provides helper methods for working with bitboards,
@@ -34,6 +36,19 @@
             => (Bitboard & 1UL << bitIndex) != 0;
 
         /// <summary>
+        /// Returns and toggles off the least significant bit (LSB) of the bitboard.
+        /// </summary>
+        /// <param name="Bitboard">The bitboard</param>
+        /// <returns>the LSB</returns>
+        public static int PopLSB(ref ulong Bitboard)
+        {
+            int LSB = BitOperations.TrailingZeroCount(Bitboard);
+            ToggleBit(ref Bitboard, LSB);
+
+            return LSB;
+        }
+
+        /// <summary>
         /// Toggles (flips) the bit at the specified index in the given bitboard.
         /// </summary>
         /// <param name="Bitboard">Reference to the bitboard to modify.</param>
@@ -53,6 +68,30 @@
         {
             ToggleBit(ref Bitboard, squareA);
             ToggleBit(ref Bitboard, squareB);
+        }
+
+        /// <summary>
+        /// Prints a bitboard to the console in a human-readable format.
+        /// used for debugging purposes to visualize the bitboard.
+        /// </summary>
+        /// <param name="bitboard">The bitboard to print</param>
+        public static void PrintBitboard(ulong bitboard)
+        {
+            for (int i = 0; i < 64; i++)
+            {
+                if (IsBitSet(bitboard, i))
+                {
+                    Console.Write("1 ");
+                }
+                else
+                {
+                    Console.Write(". ");
+                }
+                if ((i + 1) % 8 == 0)
+                {
+                    Console.WriteLine();
+                }
+            }
         }
     }
 }

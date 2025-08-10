@@ -71,7 +71,7 @@ namespace Michael.src
         /// <returns>An array of all the legal moves in the position</returns>
         public Move[] GetLegalMoves()
         {
-            Move[] legalMoves = MoveGenerator.generateLegalMoves(this);
+            Move[] legalMoves = MoveGenerator.GenerateLegalMoves(this);
 
             return legalMoves;
         }

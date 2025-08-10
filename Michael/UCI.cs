@@ -36,7 +36,7 @@ public static class UCI
                 break;
 
             case "go":
-                string bestMoveString = "e2e4"; // Placeholder for the best move
+                string bestMoveString = Notation.MoveToAlgebraic(Engine.GetBestMove());
                 Console.WriteLine($"bestmove {bestMoveString}");
                 break;
 

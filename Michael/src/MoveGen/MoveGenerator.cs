@@ -1,4 +1,6 @@
-﻿namespace Michael.src.MoveGen
+﻿using Michael.src.Helpers;
+
+namespace Michael.src.MoveGen
 {
     /// <summary>
     /// Provides methods for generating legal moves for a given board position.
@@ -18,16 +20,44 @@
         //Current index in the legal moves array, used to track the position in the array.
         private static int CurrentMoveIndex = 0;
 
-        public static Move[] generateLegalMoves(Board boardInstance)
+        private static ulong enemyBitboardAndEmptySquares; //Stores the enemy bitboard and empty squares for legal move generation.
+
+        //Stores all the legal moves the knight can make from a given square.
+        //Precomputed before the game starts in the PrecomputeMoveData class.
+        public static ulong[] KnightMoves = new ulong[64];
+
+        public static Move[] GenerateLegalMoves(Board boardInstance)
         {
-            Board board = boardInstance; //Set the board to the current board instance.
+            board = boardInstance; //Set the board to the current board instance.
             Init(); //Initialize all the necessary variables for move generation.
 
             Move[] legalMoves = new Move[MaxLegalMoves]; // Create an array to hold the legal moves.
+            GenerateLegalKnightMoves(ref legalMoves); // Generate all the legal knight moves and add them to the legal moves array.
+
 
             //Convert the array to a span and slice to the amount of legal moves in the position and return as an array.
             //This is done to no return 218 moves when there are less than that in the position.
             return legalMoves.AsSpan().Slice(0, CurrentMoveIndex).ToArray(); 
+        }
+
+        /// <summary>
+        /// Generates all the legal moves for a knight piece and return to the given legalMoves array.
+        /// </summary>
+        /// <param name="legalMoves">the array to return the legal knight moves</param>
+        public static void GenerateLegalKnightMoves(ref Move[] legalMoves)
+        {
+            ulong knightBitboard = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Knight, board.ColorToMove)];
+            while (knightBitboard != 0)
+            {
+                int knightSquare = BitboardHelper.PopLSB(ref knightBitboard); // Get the square of the knight piece.
+                ulong attacks = KnightMoves[knightSquare] & enemyBitboardAndEmptySquares; // Get the precomputed moves for the knight from that square.
+                // Iterate through all possible moves and add them to the legal moves array.
+                while (attacks != 0)
+                {
+                    int targetSquare = BitboardHelper.PopLSB(ref attacks);
+                    legalMoves[CurrentMoveIndex++] = new Move(knightSquare, targetSquare);
+                }
+            }
         }
 
         //Sets up all the necessary variables for move generation.
@@ -35,6 +65,7 @@
         private static void Init()
         {
             CurrentMoveIndex = 0; // Reset the current move index to 0.
+            enemyBitboardAndEmptySquares = ~board.ColoredBitboards[board.ColorToMove]; // Get the enemy bitboard and empty squares.
         }
     }
 }

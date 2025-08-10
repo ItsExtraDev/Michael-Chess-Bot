@@ -42,5 +42,31 @@ namespace Michael.src.Helpers
             
             return new Move(startingSquare, targetSquare);
         }
+
+        /// <summary>
+        /// Converts an internal square index (0-63) to algebraic notation (like "e4", "g3" etc).
+        /// </summary>
+        /// <param name="index">The internal square index</param>
+        /// <returns>The algbaric value of the square index</returns>
+        public static string IndexToSquare(int index)
+        {
+            if (index < 0 || index > 63)
+                throw new ArgumentOutOfRangeException("Index must be between 0 and 63.");
+            int file = index % 8; // Get file (0-7)
+            int rank = index / 8; // Get rank (0-7)
+            return $"{(char)('a' + file)}{rank + 1}"; // Convert to algebraic notation
+        }
+
+        /// <summary>
+        /// Converts a Move object to algebraic notation (like "e2e4", "g1f3" etc).
+        /// </summary>
+        /// <param name="move">A move object</param>
+        /// <returns>An algebraic notation of the move</returns>
+        public static string MoveToAlgebraic(Move move)
+        {
+            string startingSquare = IndexToSquare(move.StartingSquare);
+            string targetSquare = IndexToSquare(move.TargetSquare);
+            return $"{startingSquare}{targetSquare}";
+        }
     }
 }

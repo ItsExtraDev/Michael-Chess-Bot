@@ -32,6 +32,18 @@ namespace Michael.src
         }
 
         /// <summary>
+        /// Returns the best move for the current position on the board, according to the engine.
+        /// </summary>
+        /// <returns>The best move in the current position</returns>
+        public static Move GetBestMove()
+        {
+            //Placeholder for the best move logic.
+            //Currently , it returns a random legal move from the board. but some sort of search algorithm should be implemented here.
+            Random random = new Random();
+            return board.GetLegalMoves()[random.Next(board.GetLegalMoves().Length)];
+        }
+
+        /// <summary>
         /// Loads the board from a position command from the GUI.
         /// </summary>
         public static void LoadBoardFromPositionCommand(string[] commandTokens)

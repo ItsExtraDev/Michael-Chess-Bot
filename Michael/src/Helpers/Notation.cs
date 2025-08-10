@@ -1,4 +1,5 @@
 ﻿using Michael.src.MoveGen;
+using System.Diagnostics;
 
 namespace Michael.src.Helpers
 {
@@ -67,6 +68,31 @@ namespace Michael.src.Helpers
             string startingSquare = IndexToSquare(move.StartingSquare);
             string targetSquare = IndexToSquare(move.TargetSquare);
             return $"{startingSquare}{targetSquare}";
+        }
+
+        /// <summary>
+        /// Performs a perft test on the current position, and prints the results to the console in a readable format.
+        /// </summary>
+        public static void PrintPerftTest(Board b, int depth)
+        {
+            Stopwatch sw = Stopwatch.StartNew();
+            int totalNodes = 0;
+
+            foreach(Move move in b.GetLegalMoves())
+            {
+                int nodes = 1;
+                if (depth > 1)
+                {
+                    b.MakeMove(move); // Make the move on the board
+                    nodes = MoveGenerator.Perft(b, depth - 1); // Perform perft on the new board
+                    b.UndoMove(move); // Undo the move to restore the board state
+                    totalNodes += nodes; // Add the nodes to the total count
+                }
+                Console.WriteLine($"{MoveToAlgebraic(move)}: {nodes}");
+            }
+            sw.Stop();
+            Console.WriteLine($"Looked at a total of {totalNodes} Nodes in {sw.ElapsedMilliseconds} ms.");
+            Console.WriteLine($"That is an avarge of {totalNodes / sw.ElapsedMilliseconds * 1000} nps.");
         }
     }
 }

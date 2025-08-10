@@ -46,6 +46,15 @@ namespace Michael.src
         //Current turn of the game.
         public int ColorToMove;
 
+        //The game state used to track the current state of the game.
+        public int CurrentGameState;
+
+        //Contains the history of game states for undo functionality.
+        public List<int> GameStateHistory = new List<int>();
+
+        //Create the array before the game starts to avoid allocating memory every time we need to generate legal moves.
+        Move[] legalMoves;
+
         /// <summary>
         /// Instantiates a board and automatically loads the starting position.
         /// The position can be changed by passing a custom FEN string.
@@ -63,6 +72,7 @@ namespace Michael.src
         private void LoadFen(string fenString)
         {
             FEN.LoadFEN(this, fenString);
+            CurrentGameState = GameState.MakeGameState(Piece.None, Piece.None); // Initialize the game state
         }
 
         /// <summary>
@@ -71,7 +81,7 @@ namespace Michael.src
         /// <returns>An array of all the legal moves in the position</returns>
         public Move[] GetLegalMoves()
         {
-            Move[] legalMoves = MoveGenerator.GenerateLegalMoves(this);
+            legalMoves = MoveGenerator.GenerateLegalMoves(this);
 
             return legalMoves;
         }
@@ -82,35 +92,74 @@ namespace Michael.src
         /// <param name="move"></param>
         public void MakeMove(Move move)
         {
+            //Console.WriteLine($"Making move: {move.StartingSquare} {move.TargetSquare} {Squares[move.StartingSquare]} {ColorToMove}");
+            //BitboardHelper.PrintBitboard(PiecesBitboards[1]);
+            //BoardHelper.PrintBoard(this); // Print the board before making the move for debugging purposes
+            //BitboardHelper.PrintBitboard(PiecesBitboards[2]);
             int movingPiece = Squares[move.StartingSquare];
             int movingPieceType = Piece.PieceType(movingPiece);
+            //Console.WriteLine(movingPiece);
+            //Console.WriteLine(BitboardHelper.GetBitboardIndex(movingPieceType, ColorToMove));
+            //Console.WriteLine(movingPieceType);
             int movingBitboardIndex = BitboardHelper.GetBitboardIndex(movingPieceType, ColorToMove);
             ref ulong movingBitboard = ref PiecesBitboards[movingBitboardIndex];
             int CapturedPiece = Squares[move.TargetSquare];
-
+            //Console.WriteLine("B");
             Squares[move.StartingSquare] = Piece.None; // Clear the starting square
             Squares[move.TargetSquare] = movingPiece; // Place the piece on the target square
             BitboardHelper.MovePiece(ref movingBitboard, move.StartingSquare, move.TargetSquare); // Update the bitboard
             BitboardHelper.MovePiece(ref ColoredBitboards[ColorToMove], move.StartingSquare, move.TargetSquare); // Update the colored bitboard
-            BitboardHelper.ToggleBit(ref ColoredBitboards[2], move.StartingSquare); // Remove the starting square from the empty squares bitboard
+            BitboardHelper.MovePiece(ref ColoredBitboards[2], move.StartingSquare, move.TargetSquare); // Remove the starting square from the empty squares bitboard
+            // Console.WriteLine("C");
+
+            GameStateHistory.Add(CurrentGameState); // Add the current game state to history
+            CurrentGameState = GameState.MakeGameState(CapturedPiece, movingPiece); // Update the game state with the captured piece and moving piece
+            ColorToMove ^= 1; // Switch the turn to the other player (0 for white, 1 for black)
 
             if (CapturedPiece != Piece.None)
             {
+                //Console.WriteLine("D");
                 // If a piece was captured, remove it from the board and its bitboard
                 int capturedPieceType = Piece.PieceType(CapturedPiece);                      //The color of the captured piece is always the opposite color of the moving player.
-                int capturedBitboardIndex = BitboardHelper.GetBitboardIndex(capturedPieceType, ColorToMove ^ 1 );
+                int capturedBitboardIndex = BitboardHelper.GetBitboardIndex(capturedPieceType, ColorToMove);
                 ref ulong capturedBitboard = ref PiecesBitboards[capturedBitboardIndex];
                 BitboardHelper.ToggleBit(ref capturedBitboard, move.TargetSquare); // Remove the captured piece from its bitboard
-                BitboardHelper.ToggleBit(ref ColoredBitboards[ColorToMove ^ 1], move.TargetSquare); // Remove from the colored bitboard
-            }
-            else
-            {
-                // If no piece was captured, add the target square to the empty squares bitboard
+                BitboardHelper.ToggleBit(ref ColoredBitboards[ColorToMove], move.TargetSquare); // Remove from the colored bitboard
                 BitboardHelper.ToggleBit(ref ColoredBitboards[2], move.TargetSquare);
+                // Console.WriteLine("D2");
             }
                 //TODO promotion logic, en passant logic, and caslting logic
+           // Console.WriteLine("E");
+        }
 
-                ColorToMove ^= 1; // Switch the turn to the other player (0 for white, 1 for black)
+        public void UndoMove(Move move)
+        {
+            int movingPiece = Squares[move.TargetSquare];
+            int movingPieceType = Piece.PieceType(movingPiece);
+            int movingBitboardIndex = BitboardHelper.GetBitboardIndex(movingPieceType, ColorToMove ^ 1);
+            ref ulong movingBitboard = ref PiecesBitboards[movingBitboardIndex];
+            int capturedPiece = GameState.CapturedPiece(CurrentGameState);
+
+            Squares[move.TargetSquare] = capturedPiece; // Clear the target square
+            Squares[move.StartingSquare] = movingPiece; // Place the piece back on the starting square
+            BitboardHelper.MovePiece(ref movingBitboard, move.TargetSquare, move.StartingSquare); // Update the bitboard
+            BitboardHelper.MovePiece(ref ColoredBitboards[ColorToMove ^ 1], move.TargetSquare, move.StartingSquare); // Update the colored bitboard
+            BitboardHelper.MovePiece(ref ColoredBitboards[2], move.StartingSquare, move.TargetSquare); // Add the target square back to the empty squares bitboard
+
+            if (capturedPiece != Piece.None)
+            {
+                // If a piece was captured, restore it to the board and its bitboard
+                int capturedPieceType = Piece.PieceType(capturedPiece);
+                int capturedBitboardIndex = BitboardHelper.GetBitboardIndex(capturedPieceType, ColorToMove);
+                ref ulong capturedBitboard = ref PiecesBitboards[capturedBitboardIndex];
+                BitboardHelper.ToggleBit(ref ColoredBitboards[2], move.StartingSquare);
+                BitboardHelper.ToggleBit(ref capturedBitboard, move.TargetSquare); // Restore the captured piece to its bitboard
+                BitboardHelper.ToggleBit(ref ColoredBitboards[ColorToMove], move.TargetSquare); // Restore to the colored bitboard
+            }
+
+            CurrentGameState = GameStateHistory.ElementAt(GameStateHistory.Count - 1); // Restore the previous game state from history
+            GameStateHistory.RemoveAt(GameStateHistory.Count - 1); // Remove the last game state from history
+            ColorToMove ^= 1; // Switch the turn back to the previous player (0 for white, 1 for black)
         }
     }
 }

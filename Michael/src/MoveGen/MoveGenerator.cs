@@ -33,7 +33,7 @@ namespace Michael.src.MoveGen
 
             Move[] legalMoves = new Move[MaxLegalMoves]; // Create an array to hold the legal moves.
 
-            GenerateLegalPawnMoves(ref legalMoves); // Generate all the legal pawn moves and add them to the legal moves array.
+           // GenerateLegalPawnMoves(ref legalMoves); // Generate all the legal pawn moves and add them to the legal moves array.
             GenerateLegalKnightMoves(ref legalMoves); // Generate all the legal knight moves and add them to the legal moves array.
 
 
@@ -52,7 +52,6 @@ namespace Michael.src.MoveGen
 
             int moveDirection = board.ColorToMove == Piece.White ? 1 : -1; // Determine the move direction based on the color to move.
             ulong oneRankPush = BitboardHelper.ShiftBitboard(pawnBitboard, 8 * moveDirection) & board.ColoredBitboards[2];
-            BitboardHelper.PrintBitboard(board.ColoredBitboards[2]);
             while (oneRankPush != 0)
             {
                 int targetSquare = BitboardHelper.PopLSB(ref oneRankPush); // Get the square of the pawn piece.
@@ -87,6 +86,30 @@ namespace Michael.src.MoveGen
         {
             CurrentMoveIndex = 0; // Reset the current move index to 0.
             enemyBitboardAndEmptySquares = ~board.ColoredBitboards[board.ColorToMove]; // Get the enemy bitboard and empty squares.
+        }
+
+        /// <summary>
+        /// Generates all the legal moves in the position and returns the number of legal moves generated to a certain depth.
+        /// used for perft testing, debbuging and move generation validation and to help optimize.
+        /// </summary>
+        /// <returns></returns>
+        public static int Perft(Board b, int depth)
+        {
+            if (depth == 1)
+            {
+                return b.GetLegalMoves().Length; // If we are at depth 1, return the number of legal moves in the position.
+            }
+
+            int numPosition = 0; // Initialize the number of positions to 0.
+
+            foreach (Move move in b.GetLegalMoves())
+            {
+                b.MakeMove(move);
+                numPosition += Perft(b, depth - 1); // Recursively call perft on the new board and add the result to the number of positions.
+                b.UndoMove(move); // Undo the move to return to the previous position.
+            }
+
+            return numPosition;
         }
     }
 }

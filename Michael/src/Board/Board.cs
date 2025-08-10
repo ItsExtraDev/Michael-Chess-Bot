@@ -66,6 +66,17 @@ namespace Michael.src
         }
 
         /// <summary>
+        /// Gets all the legal moves in the current position and returns them as an array of moves.
+        /// </summary>
+        /// <returns>An array of all the legal moves in the position</returns>
+        public Move[] GetLegalMoves()
+        {
+            Move[] legalMoves = MoveGenerator.generateLegalMoves(this);
+
+            return legalMoves;
+        }
+
+        /// <summary>
         /// Makes a move on the board. updates bitboards and square array.
         /// </summary>
         /// <param name="move"></param>

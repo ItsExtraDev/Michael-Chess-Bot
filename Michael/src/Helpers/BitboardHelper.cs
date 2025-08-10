@@ -59,6 +59,25 @@ namespace Michael.src.Helpers
         }
 
         /// <summary>
+        /// Shifts the bits in the bitboard by the specified number of positions.
+        /// </summary>
+        /// <param name="Bitboard">The bitboard to shift</param>
+        /// <param name="shift">How many places should we shift?</param>
+        /// <returns>The shifted bitboard</returns>
+        public static ulong ShiftBitboard(ulong Bitboard, int shift)
+        {
+            if (shift > 0)
+            {
+                return Bitboard << shift;
+            }
+            else if (shift < 0)
+            {
+                return Bitboard >> -shift;
+            }
+            return Bitboard; // No shift
+        }
+
+        /// <summary>
         /// Move the piece in the bitboard from squareA to squareB.
         /// </summary>
         /// <param name="Bitboard"></param>

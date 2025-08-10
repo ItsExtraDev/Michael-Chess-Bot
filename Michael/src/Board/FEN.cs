@@ -26,6 +26,7 @@ namespace Michael.src
             Array.Clear(board.PiecesBitboards);
             Array.Clear(board.ColoredBitboards);
             Array.Clear(board.Squares);
+            board.ColoredBitboards[2] = ulong.MaxValue; // Initialize the empty squares bitboard to all squares being empty
         }
 
         /// <summary>
@@ -64,6 +65,7 @@ namespace Michael.src
                     board.Squares[square] = piece; // Place piece on board square
                     BitboardHelper.ToggleBit(ref bitboard, square); // Set corresponding bit in bitboard
                     BitboardHelper.ToggleBit(ref board.ColoredBitboards[isWhite ? Piece.White : Piece.Black], square); // Set colored bitboard
+                    BitboardHelper.ToggleBit(ref board.ColoredBitboards[2], square); // Set empty squares bitboard
                     file++; // Move to next file (column)
 
                 }

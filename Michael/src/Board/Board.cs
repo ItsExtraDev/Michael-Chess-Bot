@@ -92,6 +92,7 @@ namespace Michael.src
             Squares[move.TargetSquare] = movingPiece; // Place the piece on the target square
             BitboardHelper.MovePiece(ref movingBitboard, move.StartingSquare, move.TargetSquare); // Update the bitboard
             BitboardHelper.MovePiece(ref ColoredBitboards[ColorToMove], move.StartingSquare, move.TargetSquare); // Update the colored bitboard
+            BitboardHelper.ToggleBit(ref ColoredBitboards[2], move.StartingSquare); // Remove the starting square from the empty squares bitboard
 
             if (CapturedPiece != Piece.None)
             {
@@ -102,7 +103,14 @@ namespace Michael.src
                 BitboardHelper.ToggleBit(ref capturedBitboard, move.TargetSquare); // Remove the captured piece from its bitboard
                 BitboardHelper.ToggleBit(ref ColoredBitboards[ColorToMove ^ 1], move.TargetSquare); // Remove from the colored bitboard
             }
-            //TODO promotion logic, en passant logic, and caslting logic
+            else
+            {
+                // If no piece was captured, add the target square to the empty squares bitboard
+                BitboardHelper.ToggleBit(ref ColoredBitboards[2], move.TargetSquare);
+            }
+                //TODO promotion logic, en passant logic, and caslting logic
+
+                ColorToMove ^= 1; // Switch the turn to the other player (0 for white, 1 for black)
         }
     }
 }

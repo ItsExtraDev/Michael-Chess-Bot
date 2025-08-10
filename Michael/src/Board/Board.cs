@@ -75,13 +75,23 @@ namespace Michael.src
             int movingPieceType = Piece.PieceType(movingPiece);
             int movingBitboardIndex = BitboardHelper.GetBitboardIndex(movingPieceType, ColorToMove);
             ref ulong movingBitboard = ref PiecesBitboards[movingBitboardIndex];
+            int CapturedPiece = Squares[move.TargetSquare];
 
             Squares[move.StartingSquare] = Piece.None; // Clear the starting square
             Squares[move.TargetSquare] = movingPiece; // Place the piece on the target square
             BitboardHelper.MovePiece(ref movingBitboard, move.StartingSquare, move.TargetSquare); // Update the bitboard
             BitboardHelper.MovePiece(ref ColoredBitboards[ColorToMove], move.StartingSquare, move.TargetSquare); // Update the colored bitboard
 
-            //TODO capture logic, promotion logic, en passant logic, etc.
+            if (CapturedPiece != Piece.None)
+            {
+                // If a piece was captured, remove it from the board and its bitboard
+                int capturedPieceType = Piece.PieceType(CapturedPiece);                      //The color of the captured piece is always the opposite color of the moving player.
+                int capturedBitboardIndex = BitboardHelper.GetBitboardIndex(capturedPieceType, ColorToMove ^ 1 );
+                ref ulong capturedBitboard = ref PiecesBitboards[capturedBitboardIndex];
+                BitboardHelper.ToggleBit(ref capturedBitboard, move.TargetSquare); // Remove the captured piece from its bitboard
+                BitboardHelper.ToggleBit(ref ColoredBitboards[ColorToMove ^ 1], move.TargetSquare); // Remove from the colored bitboard
+            }
+            //TODO promotion logic, en passant logic, and caslting logic
         }
     }
 }

@@ -4,6 +4,21 @@ using System.Numerics;
 namespace Michael.src.MoveGen
 {
 
+    /*
+     * LEFT TODO FOR MOVEGEN:
+     * EN PASSANT
+     * CASTLE
+     * MATE
+     * STALEMATE
+     * DRAW REPETION
+     * DRAW 50 MOVES
+     * PROMOTIOn
+     * PIN
+     * DONT GO INTO CHECK
+     * RESPOND TO CHECK
+     * IS IN CHECK
+     */
+
     /// <summary>
     /// Provides methods for generating legal moves for a given board position.
     /// Handles all legal move generation, like move generation, legal validation, capture logic etc.
@@ -26,8 +41,10 @@ namespace Michael.src.MoveGen
 
         //Stores all the legal moves the knight can make from a given square.
         //Precomputed before the game starts in the PrecomputeMoveData class.
-         public static ulong[] KnightMoves = new ulong[64];
-         public static ulong[] KingMoves = new ulong[64];
+        public static ulong[] WhitePawnAttacks = new ulong[64];
+        public static ulong[] BlackPawnAttacks = new ulong[64];
+        public static ulong[] KnightMoves = new ulong[64];
+        public static ulong[] KingMoves = new ulong[64];
 
         public static Move[] GenerateLegalMoves(Board boardInstance)
         {
@@ -60,6 +77,7 @@ namespace Michael.src.MoveGen
             ulong middleRank = board.ColorToMove == Piece.White ? BitboardHelper.Rank4 : BitboardHelper.Rank5; // Determine the middle rank based on the color to move.
             //Allow double pawn push only if the move ends on the middle rank.
             twoRankPush &= middleRank;
+            ulong[] Captures = (board.ColorToMove == Piece.White ? WhitePawnAttacks : BlackPawnAttacks);
 
             while (oneRankPush != 0)
             {
@@ -73,6 +91,21 @@ namespace Michael.src.MoveGen
                 int startingSquare = targetSquare - (16 * moveDirection); // Calculate the starting square of the pawn.
                 legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
+
+            while (pawnBitboard != 0)
+            {
+                int startingSquare = BitboardHelper.PopLSB(ref pawnBitboard); // Get the square of the pawn piece.
+                ulong attacks = Captures[startingSquare] & board.ColoredBitboards[board.ColorToMove ^ 1];
+
+                while (attacks != 0)
+                {
+                    int targetSquare = BitboardHelper.PopLSB(ref attacks); // Get the target square of the pawn capture.
+                    // Add the move to the legal moves array.
+                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
+                }
+            }
+
+
         }
 
         /// <summary>

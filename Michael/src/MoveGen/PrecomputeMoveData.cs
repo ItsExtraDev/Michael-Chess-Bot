@@ -20,11 +20,51 @@
         /// </summary>
         public static void Init()
         {
+            PrecomputePawnAttacks();
             PrecomputeKnightMoves();
             PrecomputeKingMoves();
         }
 
         #region Pawn
+        /// <summary>
+        /// Precompute pawn captures for all squares on the board.
+        /// Each pawn can capture to the left or right diagonally,
+        /// Store these moves in a ulong array where each index represents a square on the board.
+        /// If a bit is set in the ulong, it means the knight can move to that square from the index square.
+        /// </summary>
+        private static void PrecomputePawnAttacks()
+        {
+            //Loop over all the squares on the board.
+            for (int square = 0; square < 64; square++)
+            {
+                MoveGenerator.WhitePawnAttacks[square] = CalculatePawnMoves(1UL << square, true);
+                MoveGenerator.BlackPawnAttacks[square] = CalculatePawnMoves(1UL << square, false);
+            }
+        }
+
+        /// <summary>
+        /// Calculates all the possible pawn attacks from a given square and color.
+        /// </summary>
+        /// <param name="square">The square the pawn stands on</param>
+        /// <param name="isWhite">True if the pawn is white, false if it is black.</param>
+        /// <returns>all the squares the pawn can attack from his starting square.</returns>
+        private static ulong CalculatePawnMoves(ulong startingSquare, bool isWhite)
+        {
+            ulong attacks = 0;
+
+            if (isWhite)
+            {
+                // White pawns attack diagonally up-left and up-right
+                attacks |= (startingSquare & NotHFile) << 9;  // Up-right
+                attacks |= (startingSquare & NotAFile) << 7;  // Up-left
+                return attacks;
+            }
+            // Black pawns attack diagonally down-left and down-right
+            attacks |= (startingSquare & NotHFile) >> 7;  // Down-right
+            attacks |= (startingSquare & NotAFile) >> 9;  // Down-left
+
+            return attacks;
+        }
         #endregion
 
         #region Knight

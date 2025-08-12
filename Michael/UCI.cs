@@ -36,6 +36,16 @@ public static class UCI
                 break;
 
             case "go":
+                //Perfrom a perft test
+                if (tokens.Length == 3 && tokens[1] == "perft")
+                {
+                    int depth;
+                    if (int.TryParse(tokens[2], out depth))
+                    {
+                        Notation.PrintPerftTest(Engine.board, depth);
+                        return; // Exit after perft test
+                    }
+                }
                 string bestMoveString = Notation.MoveToAlgebraic(Engine.GetBestMove());
                 Console.WriteLine($"bestmove {bestMoveString}");
                 break;

@@ -5,7 +5,7 @@ namespace Michael.src.MoveGen
     /// <summary>
     /// Provides methods for generating legal moves for a given board position.
     /// Handles all legal move generation, like move generation, legal validation, capture logic etc.
-    /// generateLegalMoves is the main method and should be called only from the board.GetLegalMoves() Function.
+    /// generateLegalMoves is the main method and should be called only from the board.GetLegalMoves() Function
     /// </summary>
     public static class MoveGenerator
     {
@@ -24,7 +24,8 @@ namespace Michael.src.MoveGen
 
         //Stores all the legal moves the knight can make from a given square.
         //Precomputed before the game starts in the PrecomputeMoveData class.
-        public static ulong[] KnightMoves = new ulong[64];
+         public static ulong[] KnightMoves = new ulong[64];
+         public static ulong[] KingMoves = new ulong[64];
 
         public static Move[] GenerateLegalMoves(Board boardInstance)
         {
@@ -33,7 +34,7 @@ namespace Michael.src.MoveGen
 
             Move[] legalMoves = new Move[MaxLegalMoves]; // Create an array to hold the legal moves.
 
-           // GenerateLegalPawnMoves(ref legalMoves); // Generate all the legal pawn moves and add them to the legal moves array.
+            GenerateLegalPawnMoves(ref legalMoves); // Generate all the legal pawn moves and add them to the legal moves array.
             GenerateLegalKnightMoves(ref legalMoves); // Generate all the legal knight moves and add them to the legal moves array.
 
 
@@ -42,20 +43,31 @@ namespace Michael.src.MoveGen
             return legalMoves.AsSpan().Slice(0, CurrentMoveIndex).ToArray(); 
         }
 
-        /// <summary>
-        /// Generates all the legal moves for a pawn piece and return to the given legalMoves array.
-        /// </summary>
-        /// <param name="legalMoves">the array to return the legal pawn moves</param>
+        // /// <summary>
+        // /// Generates all the legal moves for a pawn piece and return to the given legalMoves array.
+        // /// </summary>
+        // /// <param name="legalMoves">the array to return the legal pawn moves</param>
         public static void GenerateLegalPawnMoves(ref Move[] legalMoves)
         {
             ulong pawnBitboard = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Pawn, board.ColorToMove)];
 
             int moveDirection = board.ColorToMove == Piece.White ? 1 : -1; // Determine the move direction based on the color to move.
             ulong oneRankPush = BitboardHelper.ShiftBitboard(pawnBitboard, 8 * moveDirection) & board.ColoredBitboards[2];
+            ulong twoRankPush = BitboardHelper.ShiftBitboard(oneRankPush, 8 * moveDirection) & board.ColoredBitboards[2];
+            ulong middleRank = board.ColorToMove == Piece.White ? BitboardHelper.Rank4 : BitboardHelper.Rank5; // Determine the middle rank based on the color to move.
+            //Allow double pawn push only if the move ends on the middle rank.
+            twoRankPush &= middleRank;
+
             while (oneRankPush != 0)
             {
                 int targetSquare = BitboardHelper.PopLSB(ref oneRankPush); // Get the square of the pawn piece.
                 int startingSquare = targetSquare - (8 * moveDirection); // Calculate the starting square of the pawn.
+                legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
+            }
+            while (twoRankPush != 0)
+            {
+                int targetSquare = BitboardHelper.PopLSB(ref twoRankPush); // Get the square of the pawn piece.
+                int startingSquare = targetSquare - (16 * moveDirection); // Calculate the starting square of the pawn.
                 legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
         }

@@ -86,8 +86,8 @@ namespace Michael.src.Helpers
                     b.MakeMove(move); // Make the move on the board
                     nodes = MoveGenerator.Perft(b, depth - 1); // Perform perft on the new board
                     b.UndoMove(move); // Undo the move to restore the board state
-                    totalNodes += nodes; // Add the nodes to the total count
                 }
+                totalNodes += nodes; // Add the nodes to the total count
                 Console.WriteLine($"{MoveToAlgebraic(move)}: {nodes}");
             }
             sw.Stop();

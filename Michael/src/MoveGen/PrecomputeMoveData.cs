@@ -23,6 +23,7 @@ namespace Michael.src.MoveGen
         public static void Init()
         {
             PrecomputeKnightMoves();
+            PrecomputeKingMoves();
         }
 
         #region Pawn
@@ -67,6 +68,39 @@ namespace Michael.src.MoveGen
         #endregion
 
         #region King
+        /// <summary>
+        /// Precompute king moves for all squares on the board.
+        /// Each king can move to 8 possible positions, but some may be off the board.
+        /// Store these moves in a ulong array where each index represents a square on the board.
+        /// If a bit is set in the ulong, it means the king can move to that square from the index square.
+        /// </summary>
+        private static void PrecomputeKingMoves()
+        {
+            //Loop over all the squares on the board.
+            for (int square = 0; square < 64; square++)
+            {
+                MoveGenerator.KingMoves[square] = CalculateKingMoves(1ul << square);
+            }
+        }
+
+        /// <summary>
+        /// Calculates all the possible king moves from a given square.
+        /// </summary>
+        /// <param name="square">The square the king stands on</param>
+        /// <returns>all the squares the king can attack from his starting square.</returns>
+        public static ulong CalculateKingMoves(ulong startingSquare)
+        {
+            ulong attacks = 0;
+            attacks |= (startingSquare & NotHFile) << 9;  // Move to the right
+            attacks |= (startingSquare) << 8; // Move up
+            attacks |= (startingSquare & NotAFile) << 7;  // Move to the left
+            attacks |= (startingSquare) << 1; // Move down
+            attacks |= (startingSquare & NotAFile) >> 1;  // Move down-left
+            attacks |= (startingSquare & NotHFile) >> 8; // Move down-right
+            attacks |= (startingSquare & NotAFile) >> 9;  // Move left
+            attacks |= (startingSquare & NotHFile) >> 7; // Move up-right
+            return attacks;
+        }   
         #endregion
     }
 }

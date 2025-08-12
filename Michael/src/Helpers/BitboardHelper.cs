@@ -8,6 +8,17 @@ namespace Michael.src.Helpers
     /// </summary>
     public static class BitboardHelper
     {
+        //Rank masks
+        public const ulong Rank1 = 0x00000000000000FF;
+        public const ulong Rank2 = 0x000000000000FF00;
+        public const ulong Rank3 = 0x0000000000FF0000;
+        public const ulong Rank4 = 0x00000000FF000000;
+        public const ulong Rank5 = 0x000000FF00000000;
+        public const ulong Rank6 = 0x0000FF0000000000;
+        public const ulong Rank7 = 0x00FF000000000000;
+        public const ulong Rank8 = 0xFF00000000000000;
+
+
         /// <summary>
         /// Calculates the index of the bitboard for a given piece type and color.
         /// </summary>
@@ -96,20 +107,15 @@ namespace Michael.src.Helpers
         /// <param name="bitboard">The bitboard to print</param>
         public static void PrintBitboard(ulong bitboard)
         {
-            for (int i = 0; i < 64; i++)
+            for (int rank = 7; rank >= 0; rank--)
             {
-                if (IsBitSet(bitboard, i))
+                for (int file = 0; file < 8; file++)
                 {
-                    Console.Write("1 ");
+                    int square = rank * 8 + file;
+                    char symbol = IsBitSet(bitboard, square) ? '1' : '.';
+                    Console.Write(symbol + " ");
                 }
-                else
-                {
-                    Console.Write(". ");
-                }
-                if ((i + 1) % 8 == 0)
-                {
-                    Console.WriteLine();
-                }
+                Console.WriteLine();
             }
         }
     }

@@ -1,7 +1,9 @@
 ﻿using Michael.src.Helpers;
+using System.Numerics;
 
 namespace Michael.src.MoveGen
 {
+
     /// <summary>
     /// Provides methods for generating legal moves for a given board position.
     /// Handles all legal move generation, like move generation, legal validation, capture logic etc.
@@ -36,7 +38,7 @@ namespace Michael.src.MoveGen
 
             GenerateLegalPawnMoves(ref legalMoves); // Generate all the legal pawn moves and add them to the legal moves array.
             GenerateLegalKnightMoves(ref legalMoves); // Generate all the legal knight moves and add them to the legal moves array.
-
+            GenerateLegalKingMoves(ref legalMoves); // Generate all the legal king moves and add them to the legal moves array.
 
             //Convert the array to a span and slice to the amount of legal moves in the position and return as an array.
             //This is done to no return 218 moves when there are less than that in the position.
@@ -89,6 +91,28 @@ namespace Michael.src.MoveGen
                     int targetSquare = BitboardHelper.PopLSB(ref attacks);
                     legalMoves[CurrentMoveIndex++] = new Move(knightSquare, targetSquare);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Generates all the legal moves for a king piece and return to the given legalMoves array.
+        /// </summary>
+        /// <param name="legalMoves">the array to return the legal king moves</param>
+        public static void GenerateLegalKingMoves(ref Move[] legalMoves)
+        {
+            ulong king = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.King, board.ColorToMove)];
+
+            //TODO remove after legal move generation is implemented.
+            if (king == 0)
+                return;
+
+            int kingSquare = BitOperations.TrailingZeroCount(king); // Get the square of the king piece.
+
+            ulong kingAttacks = KingMoves[kingSquare] & enemyBitboardAndEmptySquares; // Get the precomputed moves for the king from that square.
+            while (kingAttacks != 0)
+            {
+                int targetSquare = BitboardHelper.PopLSB(ref kingAttacks);
+                legalMoves[CurrentMoveIndex++] = new Move(kingSquare, targetSquare);
             }
         }
 

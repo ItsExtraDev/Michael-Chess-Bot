@@ -1,6 +1,4 @@
-﻿using Michael.src.Helpers;
-
-namespace Michael.src.MoveGen
+﻿namespace Michael.src.MoveGen
 {
     /// <summary>
     /// using this class, we precompute all the possible moves for pawns, knights, and kings before the game starts.

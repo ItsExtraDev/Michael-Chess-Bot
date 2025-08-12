@@ -39,6 +39,7 @@ namespace Michael.src.MoveGen
             GenerateLegalPawnMoves(ref legalMoves); // Generate all the legal pawn moves and add them to the legal moves array.
             GenerateLegalKnightMoves(ref legalMoves); // Generate all the legal knight moves and add them to the legal moves array.
             GenerateLegalKingMoves(ref legalMoves); // Generate all the legal king moves and add them to the legal moves array.
+            GenerateLegalSlidingMoves(ref legalMoves); // Generate all the legal sliding moves (rooks, bishops, and queens) and add them to the legal moves array.
 
             //Convert the array to a span and slice to the amount of legal moves in the position and return as an array.
             //This is done to no return 218 moves when there are less than that in the position.
@@ -113,6 +114,41 @@ namespace Michael.src.MoveGen
             {
                 int targetSquare = BitboardHelper.PopLSB(ref kingAttacks);
                 legalMoves[CurrentMoveIndex++] = new Move(kingSquare, targetSquare);
+            }
+        }
+
+        /// <summary>
+        /// Generates all the legal moves for the sliding pieces (rooks, bishops, and queens) and returns to the given legalMoves array.
+        /// </summary>
+        /// <param name="legalMoves">the array to return the legal moves to</param>
+        public static void GenerateLegalSlidingMoves(ref Move[] legalMoves)
+        {
+            ulong orthogonalSlidesBitboard = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Rook, board.ColorToMove)] |
+                                           board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove)];
+            ulong diagonalSlidesBitboard = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Bishop, board.ColorToMove)] |
+                                           board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove)];
+
+            while (orthogonalSlidesBitboard != 0)
+            {
+                int square = BitboardHelper.PopLSB(ref orthogonalSlidesBitboard); // Get the square of the sliding piece.
+                ulong attacks = Magic.GetRookAttacks(square, ~board.ColoredBitboards[2]) & enemyBitboardAndEmptySquares; // Get the precomputed moves for the sliding piece from that square.
+                // Iterate through all possible moves and add them to the legal moves array.
+                while (attacks != 0)
+                {
+                    int targetSquare = BitboardHelper.PopLSB(ref attacks);
+                    legalMoves[CurrentMoveIndex++] = new Move(square, targetSquare);
+                }
+            }
+            while (diagonalSlidesBitboard != 0)
+            {
+                int square = BitboardHelper.PopLSB(ref diagonalSlidesBitboard); // Get the square of the sliding piece.
+                ulong attacks = Magic.GetBishopAttacks(square, ~board.ColoredBitboards[2]) & enemyBitboardAndEmptySquares; // Get the precomputed moves for the sliding piece from that square.
+                // Iterate through all possible moves and add them to the legal moves array.
+                while (attacks != 0)
+                {
+                    int targetSquare = BitboardHelper.PopLSB(ref attacks);
+                    legalMoves[CurrentMoveIndex++] = new Move(square, targetSquare);
+                }
             }
         }
 

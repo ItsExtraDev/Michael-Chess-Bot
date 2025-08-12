@@ -41,6 +41,13 @@ namespace Michael.src.Helpers
             int startingSquare = SquareToIndex(algebraic.Substring(0, 2));
             int targetSquare = SquareToIndex(algebraic.Substring(2, 2));
             
+            if (algebraic.Length == 5)
+            {
+                // Handle promotion notation (e.g., "e7e8q")
+                char promotionPiece = algebraic[4];
+                int moveFlag = Piece.SymbolToPieceType(promotionPiece);
+                return new Move(startingSquare, targetSquare, moveFlag);
+            }
             return new Move(startingSquare, targetSquare);
         }
 
@@ -67,7 +74,12 @@ namespace Michael.src.Helpers
         {
             string startingSquare = IndexToSquare(move.StartingSquare);
             string targetSquare = IndexToSquare(move.TargetSquare);
-            return $"{startingSquare}{targetSquare}";
+            char moveFlag = ' ';
+            if (move.IsPromotion())
+            {
+                moveFlag = char.ToLower(Piece.PieceTypeToSymbol(move.MoveFlag));
+            }
+            return $"{startingSquare}{targetSquare}{moveFlag}";
         }
 
         /// <summary>

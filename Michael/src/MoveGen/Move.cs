@@ -37,6 +37,9 @@
             RawMove = startingSquare << StartingSquareShift | targetSquare << TargetSquareShift | moveFlag;
         }
 
+        public bool IsPromotion()
+            => MoveFlag >= 2 && MoveFlag <= 5;
+
         /// <summary>
         /// Returns a "null" move representing no action.
         /// </summary>

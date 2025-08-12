@@ -12,7 +12,6 @@ namespace Michael.src.MoveGen
      * STALEMATE
      * DRAW REPETION
      * DRAW 50 MOVES
-     * PROMOTIOn
      * PIN
      * DONT GO INTO CHECK
      * RESPOND TO CHECK
@@ -75,6 +74,7 @@ namespace Michael.src.MoveGen
             ulong oneRankPush = BitboardHelper.ShiftBitboard(pawnBitboard, 8 * moveDirection) & board.ColoredBitboards[2];
             ulong twoRankPush = BitboardHelper.ShiftBitboard(oneRankPush, 8 * moveDirection) & board.ColoredBitboards[2];
             ulong middleRank = board.ColorToMove == Piece.White ? BitboardHelper.Rank4 : BitboardHelper.Rank5; // Determine the middle rank based on the color to move.
+            ulong promotionRank = board.ColorToMove == Piece.White ? BitboardHelper.Rank8 : BitboardHelper.Rank1; // Determine the promotion rank based on the color to move.
             //Allow double pawn push only if the move ends on the middle rank.
             twoRankPush &= middleRank;
             ulong[] Captures = (board.ColorToMove == Piece.White ? WhitePawnAttacks : BlackPawnAttacks);
@@ -83,6 +83,16 @@ namespace Michael.src.MoveGen
             {
                 int targetSquare = BitboardHelper.PopLSB(ref oneRankPush); // Get the square of the pawn piece.
                 int startingSquare = targetSquare - (8 * moveDirection); // Calculate the starting square of the pawn.
+
+                //Promotion generation
+                if ((promotionRank & 1ul << targetSquare) != 0)
+                {
+                    for (int pt = 2; pt <= 5; pt++) // Iterate through all possible promotions (Knight, Bishop, Rook, Queen).
+                    {
+                        legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, pt);
+                    }
+                    continue;
+                }
                 legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
             while (twoRankPush != 0)
@@ -100,6 +110,12 @@ namespace Michael.src.MoveGen
                 while (attacks != 0)
                 {
                     int targetSquare = BitboardHelper.PopLSB(ref attacks); // Get the target square of the pawn capture.
+                                                                           //Promotion generation
+                    for (int pt = 2; pt <= 5; pt++) // Iterate through all possible promotions (Knight, Bishop, Rook, Queen).
+                    {
+                        legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, pt);
+                        continue;
+                    }
                     // Add the move to the legal moves array.
                     legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
                 }

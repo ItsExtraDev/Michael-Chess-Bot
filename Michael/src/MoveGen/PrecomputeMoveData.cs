@@ -132,9 +132,9 @@
             attacks |= (startingSquare & NotHFile) << 9;  // Move to the right
             attacks |= (startingSquare) << 8; // Move up
             attacks |= (startingSquare & NotAFile) << 7;  // Move to the left
-            attacks |= (startingSquare) >> 1; // Move down
+            attacks |= (startingSquare) >> 8; // Move down
             attacks |= (startingSquare & NotAFile) >> 1;  // Move down-left
-            attacks |= (startingSquare & NotHFile) >> 8; // Move down-right
+            attacks |= (startingSquare & NotHFile) << 1; // Move down-right
             attacks |= (startingSquare & NotAFile) >> 9;  // Move left
             attacks |= (startingSquare & NotHFile) >> 7; // Move up-right
             return attacks;

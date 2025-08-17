@@ -93,21 +93,8 @@ namespace Michael.src
         /// <param name="move"></param>
         public void MakeMove(Move move)
         {
-            Console.WriteLine("Making move: " + Notation.MoveToAlgebraic(move));
-            Console.WriteLine(move.StartingSquare + " -> " + move.TargetSquare);
-            BoardHelper.PrintBoard(this);
             int movingPiece = Squares[move.StartingSquare];
-            for (int i = 0; i < PiecesBitboards.Length; i++)
-            {
-                if (BitboardHelper.IsBitSet(PiecesBitboards[i], move.StartingSquare))
-                {
-                    Console.WriteLine("Found moving piece in bitboard: " + i);
-                    BitboardHelper.PrintBitboard(PiecesBitboards[i]);
-                }
-            }
             int movingPieceType = Piece.PieceType(movingPiece);
-            Console.WriteLine(movingPieceType);
-            Console.WriteLine(BitboardHelper.GetBitboardIndex(movingPieceType, ColorToMove));
             int movingBitboardIndex = BitboardHelper.GetBitboardIndex(movingPieceType, ColorToMove);
             ref ulong movingBitboard = ref PiecesBitboards[movingBitboardIndex];
             int CapturedPiece = Squares[move.TargetSquare];
@@ -130,7 +117,6 @@ namespace Michael.src
             }
             if (move.IsPromotion())
             {
-                Console.WriteLine("doing promotion...");
                 // Handle promotion logic
                 int promotionPieceType = move.MoveFlag; // The piece type to promote to
                 int promotionPiece = Piece.CreatePiece(promotionPieceType, ColorToMove);
@@ -138,7 +124,6 @@ namespace Michael.src
                 ref ulong promotionBitboard = ref PiecesBitboards[promotionBitboardIndex];
                 BitboardHelper.ToggleBit(ref promotionBitboard, move.TargetSquare); // Add the promoted piece to its bitboard
                 BitboardHelper.ToggleBit(ref movingBitboard, move.TargetSquare); // remove the moving pawn from its bitboard
-                Console.WriteLine(promotionPiece);
                 Squares[move.TargetSquare] = promotionPiece; // Place the promoted piece on the target square
             }
             //TODO promotion logic, en passant logic, and caslting logic
@@ -149,8 +134,7 @@ namespace Michael.src
 
         public void UndoMove(Move move)
         {
-            Console.WriteLine("Undoing move: " + Notation.MoveToAlgebraic(move));
-            int movingPiece = Squares[move.TargetSquare];
+            int movingPiece = GameState.MovingPiece(CurrentGameState);
             int movingPieceType = Piece.PieceType(movingPiece);
             int movingBitboardIndex = BitboardHelper.GetBitboardIndex(movingPieceType, ColorToMove ^ 1);
             ref ulong movingBitboard = ref PiecesBitboards[movingBitboardIndex];
@@ -175,8 +159,6 @@ namespace Michael.src
             }
             if (move.IsPromotion())
             {
-                Console.WriteLine("Undoing promotion...");
-                Console.WriteLine(movingPiece);
                 // Handle promotion logic
                 int promotionPieceType = move.MoveFlag; // The piece type to promote to
                 int promotionBitboardIndex = BitboardHelper.GetBitboardIndex(promotionPieceType, ColorToMove ^ 1);

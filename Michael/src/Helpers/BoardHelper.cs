@@ -1,4 +1,6 @@
-﻿namespace Michael.src.Helpers
+﻿using Michael.src.MoveGen;
+
+namespace Michael.src.Helpers
 {
     /// <summary>
     /// Provides helper methods for working with the board class,
@@ -47,6 +49,20 @@
                 Console.WriteLine(" +---+---+---+---+---+---+---+---+");
             }
             Console.WriteLine("   a   b   c   d   e   f   g   h");
+        }
+
+        public static ulong GetAttackTunnel(int square1, int square2, bool IsRook)
+        {
+
+            if (IsRook)
+            {
+                if ((Magic.GetRookAttacks(square1, 0) & 1ul << square2) != 0)
+                    return Magic.GetRookAttackMask(square1, 0) & Magic.GetRookAttackMask(square2, 1ul<<square1);
+                return 0;
+            }
+            if ((Magic.GetBishopAttacks(square1, 0) & 1ul << square2) != 0)
+                return Magic.GetBishopAttackMask(square1, 0) & Magic.GetBishopAttackMask(square2, 1ul<<square1);
+            return 0;
         }
     }
 }

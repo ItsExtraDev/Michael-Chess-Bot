@@ -8,12 +8,11 @@ namespace Michael.src.MoveGen
      * LEFT TODO FOR MOVEGEN:
      * EN PASSANT
      * CASTLE
-     * MATE
-     * STALEMATE
      * DRAW REPETION
      * DRAW 50 MOVES
      * PIN
-     * IS IN CHECK
+     * COMPLETE PERFT TESTING
+     * GET AT LEAST 50M NPS ON STARTPOSS
      */
 
     /// <summary>
@@ -49,16 +48,27 @@ namespace Michael.src.MoveGen
         private static bool IsInCheck; //Stores whether the current position is in check or not.
         private static ulong checkRayMask;
 
+        public static bool InCheck(Board boardInstance)
+        {
+            board = boardInstance;
+            Init();
+
+            return IsInCheck;
+        }
+
         public static Move[] GenerateLegalMoves(Board boardInstance)
         {
             board = boardInstance; //Set the board to the current board instance.
             Init(); //Initialize all the necessary variables for move generation.
             Move[] legalMoves = new Move[MaxLegalMoves]; // Create an array to hold the legal moves.
 
-            GenerateLegalPawnMoves(ref legalMoves); // Generate all the legal pawn moves and add them to the legal moves array.
-            GenerateLegalKnightMoves(ref legalMoves); // Generate all the legal knight moves and add them to the legal moves array.
             GenerateLegalKingMoves(ref legalMoves); // Generate all the legal king moves and add them to the legal moves array.
-            GenerateLegalSlidingMoves(ref legalMoves); // Generate all the legal sliding moves (rooks, bishops, and queens) and add them to the legal moves array.
+            if (!IsInDoubleCheck)
+            {
+                GenerateLegalPawnMoves(ref legalMoves); // Generate all the legal pawn moves and add them to the legal moves array.
+                GenerateLegalKnightMoves(ref legalMoves); // Generate all the legal knight moves and add them to the legal moves array.
+                GenerateLegalSlidingMoves(ref legalMoves); // Generate all the legal sliding moves (rooks, bishops, and queens) and add them to the legal moves array.
+            }
 
             //Convert the array to a span and slice to the amount of legal moves in the position and return as an array.
             //This is done to no return 218 moves when there are less than that in the position.
@@ -130,9 +140,8 @@ namespace Michael.src.MoveGen
                     legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
                 }
             }
-
-
         }
+
 
         /// <summary>
         /// Generates all the legal moves for a knight piece and return to the given legalMoves array.

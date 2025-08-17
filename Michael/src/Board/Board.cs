@@ -52,6 +52,9 @@ namespace Michael.src
         //Contains the history of game states for undo functionality.
         public List<int> GameStateHistory = new List<int>();
 
+        private static bool InCheck;
+        private static bool hasCachedCheck = false;
+
         //Create the array before the game starts to avoid allocating memory every time we need to generate legal moves.
         Move[] legalMoves;
 
@@ -64,6 +67,27 @@ namespace Michael.src
         {
             LoadFen(fenString);
         }
+
+        public bool IsInCheck()
+        {
+            if (hasCachedCheck)
+            {
+                return InCheck;
+            }
+            InCheck = MoveGenerator.InCheck(this);
+            hasCachedCheck = true;
+
+            return InCheck;
+        }
+
+        public bool IsCheckmate()
+            => IsInCheck() && GetLegalMoves().Length == 0;
+
+        public bool IsInStalemate()
+            => !IsInCheck() && GetLegalMoves().Length == 0;
+
+        public bool IsDraw()
+            => IsInStalemate();
 
         /// <summary>
         /// Sets up the board state based on a given FEN string.

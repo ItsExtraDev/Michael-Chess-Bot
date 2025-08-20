@@ -1,12 +1,11 @@
 ﻿using Michael.src;
-using Michael.src.Helpers;
 using Michael.src.MoveGen;
 
 //Inits
 Engine.Init();
 PrecomputeMoveData.Init();
 Magic.Init();
-BitboardHelper.PrintBitboard(Magic.GetRookAttacks(1, 1ul << 2));
+
 //Always listen UCI for command from the GUI, and respond accordingly.
 while (true)
 {

@@ -51,6 +51,9 @@ namespace Michael.src
 
         //Contains the history of game states for undo functionality.
         public List<int> GameStateHistory = new List<int>();
+        public List<Move> moveHistory = new List<Move>();
+
+        public int EnPassantSquare = 0;
 
         private static bool InCheck;
         private static bool hasCachedCheck = false;
@@ -96,7 +99,7 @@ namespace Michael.src
         private void LoadFen(string fenString)
         {
             FEN.LoadFEN(this, fenString);
-            CurrentGameState = GameState.MakeGameState(Piece.None, Piece.None); // Initialize the game state
+            CurrentGameState = GameState.MakeGameState(Piece.None, Piece.None, EnPassantSquare); // Initialize the game state
         }
 
         /// <summary>
@@ -129,7 +132,20 @@ namespace Michael.src
             BitboardHelper.MovePiece(ref ColoredBitboards[ColorToMove], move.StartingSquare, move.TargetSquare); // Update the colored bitboard
             BitboardHelper.MovePiece(ref ColoredBitboards[2], move.StartingSquare, move.TargetSquare); // Remove the starting square from the empty squares bitboard
 
-            if (CapturedPiece != Piece.None)
+            if (move.MoveFlag == MoveFlag.EnPassant)
+            {
+                // Handle en passant logic
+                int enPassantSquare = move.TargetSquare + (ColorToMove == Piece.White ? -8 : 8); // Calculate the square that the pawn would have been on if it had not been captured
+
+                Squares[enPassantSquare] = Piece.None; // Remove the captured pawn from the board
+                int capturedPawnType = Piece.CreatePiece(Piece.Pawn, ColorToMove ^ 1); // Create the captured pawn piece
+                int capturedBitboardIndex = BitboardHelper.GetBitboardIndex(Piece.Pawn, ColorToMove ^ 1);
+                ref ulong capturedBitboard = ref PiecesBitboards[capturedBitboardIndex];
+                BitboardHelper.ToggleBit(ref capturedBitboard, enPassantSquare); // Remove the captured pawn from its bitboard
+                BitboardHelper.ToggleBit(ref ColoredBitboards[ColorToMove ^ 1], enPassantSquare); // Remove from the colored bitboard
+                BitboardHelper.ToggleBit(ref ColoredBitboards[2], enPassantSquare); // Remove from the colored bitboard
+            }
+            else if (CapturedPiece != Piece.None)
             {
                 // If a piece was captured, remove it from the board and its bitboard
                 int capturedPieceType = Piece.PieceType(CapturedPiece);                      //The color of the captured piece is always the opposite color of the moving player.
@@ -150,9 +166,19 @@ namespace Michael.src
                 BitboardHelper.ToggleBit(ref movingBitboard, move.TargetSquare); // remove the moving pawn from its bitboard
                 Squares[move.TargetSquare] = promotionPiece; // Place the promoted piece on the target square
             }
-            //TODO promotion logic, en passant logic, and caslting logic
+            else if (move.MoveFlag == MoveFlag.DoublePawnPush)
+            {
+                // Handle double pawn push logic
+                EnPassantSquare = move.TargetSquare + (ColorToMove == Piece.White ? -8 : 8); // Set the en passant square
+            }
+            else
+            {
+                EnPassantSquare = 0; // Reset en passant square if not a double pawn push
+            }
+            //en passant logic, and caslting logic
             GameStateHistory.Add(CurrentGameState); // Add the current game state to history
-            CurrentGameState = GameState.MakeGameState(CapturedPiece, movingPiece); // Update the game state with the captured piece and moving piece
+            CurrentGameState = GameState.MakeGameState(CapturedPiece, movingPiece, EnPassantSquare); // Update the game state with the captured piece and moving piece
+            moveHistory.Add(move); // Add the move to the history
             ColorToMove ^= 1; // Switch the turn to the other player (0 for white, 1 for black)
         }
 
@@ -170,7 +196,19 @@ namespace Michael.src
             BitboardHelper.MovePiece(ref ColoredBitboards[ColorToMove ^ 1], move.TargetSquare, move.StartingSquare); // Update the colored bitboard
             BitboardHelper.MovePiece(ref ColoredBitboards[2], move.StartingSquare, move.TargetSquare); // Add the target square back to the empty squares bitboard
 
-            if (capturedPiece != Piece.None)
+            if (move.MoveFlag == MoveFlag.EnPassant)
+            {
+                // Handle en passant logic
+                int enPassantSquare = move.TargetSquare + (ColorToMove == Piece.Black ? -8 : 8); // Calculate the square that the pawn would have been on if it had not been captured
+                Squares[enPassantSquare] = Piece.CreatePiece(Piece.Pawn, ColorToMove); // Remove the captured pawn from the board
+                int capturedPawnType = Piece.CreatePiece(Piece.Pawn, ColorToMove); // Create the captured pawn piece
+                int capturedBitboardIndex = BitboardHelper.GetBitboardIndex(Piece.Pawn, ColorToMove);
+                ref ulong capturedBitboard = ref PiecesBitboards[capturedBitboardIndex];
+                BitboardHelper.ToggleBit(ref capturedBitboard, enPassantSquare); // Remove the captured pawn from its bitboard
+                BitboardHelper.ToggleBit(ref ColoredBitboards[ColorToMove], enPassantSquare); // Remove from the colored bitboard
+                BitboardHelper.ToggleBit(ref ColoredBitboards[2], enPassantSquare); // Remove from the colored bitboard
+            }
+            else if (capturedPiece != Piece.None)
             {
                 // If a piece was captured, restore it to the board and its bitboard
                 int capturedPieceType = Piece.PieceType(capturedPiece);
@@ -181,6 +219,7 @@ namespace Michael.src
                 BitboardHelper.ToggleBit(ref ColoredBitboards[ColorToMove], move.TargetSquare); // Restore to the colored bitboard
                 Squares[move.TargetSquare] = capturedPiece; // Clear the target square
             }
+
             if (move.IsPromotion())
             {
                 // Handle promotion logic
@@ -195,6 +234,8 @@ namespace Michael.src
 
             CurrentGameState = GameStateHistory.ElementAt(GameStateHistory.Count - 1); // Restore the previous game state from history
             GameStateHistory.RemoveAt(GameStateHistory.Count - 1); // Remove the last game state from history
+            moveHistory.RemoveAt(moveHistory.Count - 1); // Remove the last move from history
+            EnPassantSquare = GameState.GetEnPassantSquare(CurrentGameState); // Restore the en passant square from the game state
             ColorToMove ^= 1; // Switch the turn back to the previous player (0 for white, 1 for black)
         }
     }

@@ -69,13 +69,24 @@ namespace Michael.src
             else
             {
                 return; // Invalid command, do nothing
-            }
+            }//position startpos moves a2a4 a7a6 a4a5 b7b5 a5b6
 
             for (int index = startingMoveIndex; index < commandTokens.Length; index++)
             {
                 //Make each move in the position command.
                 string moveString = commandTokens[index];
                 Move move = Notation.AlgebraicToMove(moveString);
+
+                if (board.EnPassantSquare == move.TargetSquare && board.Squares[move.StartingSquare] == Piece.Pawn)
+                {
+                    board.MakeMove(new Move(move.StartingSquare, move.TargetSquare, MoveFlag.EnPassant));
+                    continue;
+                }
+                else if (Math.Abs(BoardHelper.Rank(move.TargetSquare) - BoardHelper.Rank(move.StartingSquare)) ==2 && Piece.PieceType(board.Squares[move.StartingSquare]) == Piece.Pawn)
+                {
+                    board.MakeMove(new Move(move.StartingSquare, move.TargetSquare,MoveFlag.DoublePawnPush));
+                    continue;
+                }
 
                 board.MakeMove(move);
             }

@@ -57,11 +57,25 @@ namespace Michael.src.Helpers
             if (IsRook)
             {
                 if ((Magic.GetRookAttacks(square1, 0) & 1ul << square2) != 0)
-                    return Magic.GetRookAttackMask(square1, 0) & Magic.GetRookAttackMask(square2, 1ul<<square1);
+                    return Magic.GetRookAttackMask(square1, 1ul<<square2) & Magic.GetRookAttackMask(square2, 1ul<<square1);
                 return 0;
             }
             if ((Magic.GetBishopAttacks(square1, 0) & 1ul << square2) != 0)
-                return Magic.GetBishopAttackMask(square1, 0) & Magic.GetBishopAttackMask(square2, 1ul<<square1);
+                return Magic.GetBishopAttackMask(square1, 1ul << square2) & Magic.GetBishopAttackMask(square2, 1ul<<square1);
+            return 0;
+        }
+
+        public static ulong GetPinAttackTunnel(int square1, int square2, bool IsRook)
+        {
+
+            if (IsRook)
+            {
+                if ((Magic.GetRookAttacks(square1, 0) & 1ul << square2) != 0)
+                    return Magic.GetRookAttacks(square1, 0) & Magic.GetRookAttacks(square2, 0);
+                return 0;
+            }
+            if ((Magic.GetBishopAttacks(square1, 0) & 1ul << square2) != 0)
+                return Magic.GetBishopAttacks(square1, 0) & Magic.GetBishopAttacks(square2, 0);
             return 0;
         }
     }

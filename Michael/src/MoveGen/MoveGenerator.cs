@@ -10,7 +10,6 @@ namespace Michael.src.MoveGen
      * CASTLE
      * DRAW REPETION
      * DRAW 50 MOVES
-     * PIN
      * COMPLETE PERFT TESTING
      * GET AT LEAST 50M NPS ON STARTPOSS
      */
@@ -47,6 +46,10 @@ namespace Michael.src.MoveGen
         private static bool IsInDoubleCheck;
         private static bool IsInCheck; //Stores whether the current position is in check or not.
         private static ulong checkRayMask;
+        private static ulong DiagonalPinMask;
+        private static ulong OrthogonalPinMask;
+        private static ulong DiagonalPinMovementMask;
+        private static ulong OrthogonalPinMovementMask;
 
         public static bool InCheck(Board boardInstance)
         {
@@ -61,7 +64,6 @@ namespace Michael.src.MoveGen
             board = boardInstance; //Set the board to the current board instance.
             Init(); //Initialize all the necessary variables for move generation.
             Move[] legalMoves = new Move[MaxLegalMoves]; // Create an array to hold the legal moves.
-
             GenerateLegalKingMoves(ref legalMoves); // Generate all the legal king moves and add them to the legal moves array.
             if (!IsInDoubleCheck)
             {
@@ -79,66 +81,98 @@ namespace Michael.src.MoveGen
         // /// Generates all the legal moves for a pawn piece and return to the given legalMoves array.
         // /// </summary>
         // /// <param name="legalMoves">the array to return the legal pawn moves</param>
-        public static void GenerateLegalPawnMoves(ref Move[] legalMoves)
+        private static void GenerateLegalPawnMoves(ref Move[] legalMoves)
         {
-            ulong pawnBitboard = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Pawn, board.ColorToMove)];
+            int BitboardIndex = BitboardHelper.GetBitboardIndex(Piece.Pawn, board.ColorToMove);
+            ulong pawns = board.PiecesBitboards[BitboardIndex];
+            ulong pawnsPush = pawns & ~DiagonalPinMask;
+            ulong pawnsCapture = pawns & ~OrthogonalPinMask;
+            int moveDir = board.ColorToMove == Piece.White ? 1 : -1;
 
-            int moveDirection = board.ColorToMove == Piece.White ? 1 : -1; // Determine the move direction based on the color to move.
-            ulong oneRankPush = BitboardHelper.ShiftBitboard(pawnBitboard, 8 * moveDirection) & board.ColoredBitboards[2];
-            ulong twoRankPush = BitboardHelper.ShiftBitboard(oneRankPush, 8 * moveDirection) & board.ColoredBitboards[2] & checkRayMask;
-            ulong middleRank = board.ColorToMove == Piece.White ? BitboardHelper.Rank4 : BitboardHelper.Rank5; // Determine the middle rank based on the color to move.
-            ulong promotionRank = board.ColorToMove == Piece.White ? BitboardHelper.Rank8 : BitboardHelper.Rank1; // Determine the promotion rank based on the color to move.
-            //Allow double pawn push only if the move ends on the middle rank.
-            twoRankPush &= middleRank;
-            ulong[] Captures = (board.ColorToMove == Piece.White ? WhitePawnAttacks : BlackPawnAttacks);
-            ulong pawnPushPromotion = oneRankPush & promotionRank & checkRayMask; // Get the squares where the pawn can promote.
-            oneRankPush &= checkRayMask &= ~promotionRank; // Remove the promotion squares from the one rank push.
+            //The rank each color need to get to in order to promote a pawn
+            int finalRank = board.ColorToMove == Piece.White ? 7 : 0;
+            //pawns can move up one rank, only to empty squares.
+            ulong oneRankPush = BitboardHelper.ShiftBitboard(pawnsPush, 8*moveDir);
+            
+            ulong CaptureLeft = ((BitboardHelper.ShiftBitboard(pawnsCapture, 8*moveDir) >> 1) & board.ColoredBitboards[board.ColorToMove ^ 1]) & PrecomputeMoveData.NotHFile & checkRayMask;
+            ulong CaptureRight = ((BitboardHelper.ShiftBitboard(pawnsCapture, 8*moveDir) << 1) & board.ColoredBitboards[board.ColorToMove ^ 1]) & PrecomputeMoveData.NotAFile & checkRayMask;
+            oneRankPush &= board.ColoredBitboards[2];
+            ulong twoRankPush = (BitboardHelper.ShiftBitboard(oneRankPush, 8*moveDir)) & board.ColoredBitboards[2] & checkRayMask;
 
+            //Make sure a pawn can push 2 squares only if on the starting square
+            twoRankPush &= (board.ColorToMove == Piece.White ?  BitboardHelper.Rank4 : BitboardHelper.Rank5);
+            oneRankPush &= checkRayMask;
+            //One rank push
             while (oneRankPush != 0)
             {
-                int targetSquare = BitboardHelper.PopLSB(ref oneRankPush); // Get the square of the pawn piece.
-                int startingSquare = targetSquare - (8 * moveDirection); // Calculate the starting square of the pawn.
-
-                legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
+                int targetSquare = BitboardHelper.PopLSB(ref oneRankPush);
+                int startingSquare = targetSquare - 8 * moveDir;
+                if ((OrthogonalPinMask & 1ul << startingSquare) != 0)
+                {
+                    //If the pawn is pinned orthogonally, it can only move to the square it is pinned to.
+                    if ((OrthogonalPinMovementMask & 1ul << targetSquare) == 0)
+                        continue;
+                }
+                if (BoardHelper.Rank(targetSquare) == finalRank)
+                {
+                    for (int PromotionPT = 2; PromotionPT <= 5; PromotionPT++)
+                    {
+                        legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, PromotionPT);
+                    }
+                }
+                else
+                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
+            //Two rank push
             while (twoRankPush != 0)
             {
-                int targetSquare = BitboardHelper.PopLSB(ref twoRankPush); // Get the square of the pawn piece.
-                int startingSquare = targetSquare - (16 * moveDirection); // Calculate the starting square of the pawn.
+
+                int targetSquare = BitboardHelper.PopLSB(ref twoRankPush);
+                int startingSquare = targetSquare - 16 * moveDir;
+                if ((OrthogonalPinMask & 1ul << startingSquare) != 0)
+                {
+                    //If the pawn is pinned orthogonally, it can only move to the square it is pinned to.
+                    if ((OrthogonalPinMovementMask & 1ul << targetSquare) == 0)
+                        continue;
+                }
                 legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.DoublePawnPush);
             }
-
-            while (pawnPushPromotion != 0)
+            //Captures
+            while (CaptureLeft != 0)
             {
-                int targetSquare = BitboardHelper.PopLSB(ref pawnPushPromotion); // Get the square of the pawn piece.
-                int startingSquare = targetSquare - (8 * moveDirection); // Calculate the starting square of the pawn.
+                int targetSquare = BitboardHelper.PopLSB(ref CaptureLeft);
+                int startingSquare = targetSquare + (board.ColorToMove == Piece.White ? -7 : 9);
 
-                for (int pt = 2; pt <= 5; pt++) // Iterate through all possible promotions (Knight, Bishop, Rook, Queen).
+                if (((DiagonalPinMask & 1ul << startingSquare) != 0) && (DiagonalPinMovementMask & 1ul << targetSquare) == 0)
+                    continue;
+
+                if (BoardHelper.Rank(targetSquare) == finalRank)
                 {
-                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, pt);
-                }
-            }
-
-            while (pawnBitboard != 0)
-            {
-                int startingSquare = BitboardHelper.PopLSB(ref pawnBitboard); // Get the square of the pawn piece.
-                ulong attacks = Captures[startingSquare] & board.ColoredBitboards[board.ColorToMove ^ 1] & checkRayMask;
-
-                while (attacks != 0)
-                {
-                    int targetSquare = BitboardHelper.PopLSB(ref attacks); // Get the target square of the pawn capture.
-                                                                           //Promotion generation
-                    if ((promotionRank & 1ul << targetSquare) != 0)
+                    for (int PromotionPT = 2; PromotionPT <= 5; PromotionPT++)
                     {
-                        for (int pt = 2; pt <= 5; pt++) // Iterate through all possible promotions (Knight, Bishop, Rook, Queen).
-                        {
-                            legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, pt);
-                        }
-                        continue;
+                        legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, PromotionPT);
                     }
-                    // Add the move to the legal moves array.
-                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
                 }
+                else
+                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
+            }
+            while (CaptureRight != 0)
+            {
+                int targetSquare = BitboardHelper.PopLSB(ref CaptureRight);
+                int startingSquare = targetSquare + (board.ColorToMove == Piece.White ? -9 : 7);
+
+                if (((DiagonalPinMask & 1ul << startingSquare) != 0) && (DiagonalPinMovementMask & 1ul << targetSquare) == 0)
+                    continue;
+
+                if (BoardHelper.Rank(targetSquare) == finalRank)
+                {
+                    for (int PromotionPT = 2; PromotionPT <= 5; PromotionPT++)
+                    {
+                        legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, PromotionPT);
+                    }
+                }
+                else
+                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
         }
 
@@ -149,7 +183,7 @@ namespace Michael.src.MoveGen
         /// <param name="legalMoves">the array to return the legal knight moves</param>
         public static void GenerateLegalKnightMoves(ref Move[] legalMoves)
         {
-            ulong knightBitboard = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Knight, board.ColorToMove)];
+            ulong knightBitboard = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Knight, board.ColorToMove)] & ~DiagonalPinMask & ~OrthogonalPinMask; ;
             while (knightBitboard != 0)
             {
                 int knightSquare = BitboardHelper.PopLSB(ref knightBitboard); // Get the square of the knight piece.
@@ -171,10 +205,6 @@ namespace Michael.src.MoveGen
         {
             ulong king = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.King, board.ColorToMove)];
 
-            //TODO remove after legal move generation is implemented.
-            if (king == 0)
-                return;
-
             int kingSquare = BitOperations.TrailingZeroCount(king); // Get the square of the king piece.
 
             ulong kingAttacks = KingMoves[kingSquare] & enemyBitboardAndEmptySquares & ~enemyAttacks; // Get the precomputed moves for the king from that square.
@@ -189,50 +219,81 @@ namespace Michael.src.MoveGen
         /// Generates all the legal moves for the sliding pieces (rooks, bishops, and queens) and returns to the given legalMoves array.
         /// </summary>
         /// <param name="legalMoves">the array to return the legal moves to</param>
-        public static void GenerateLegalSlidingMoves(ref Move[] legalMoves)
+        private static void GenerateLegalSlidingMoves(ref Move[] legalMoves)
         {
-            ulong orthogonalSlidesBitboard = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Rook, board.ColorToMove)] |
-                                           board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove)];
-            ulong diagonalSlidesBitboard = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Bishop, board.ColorToMove)] |
-                                           board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove)];
+            ulong orthogonalPieces = (board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Rook, board.ColorToMove)]
+                                    | board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove)]) & ~DiagonalPinMask;
+            ulong diagonalPieces = (board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Bishop, board.ColorToMove)] |
+                       board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove)]) & ~OrthogonalPinMask;
+            
 
-            while (orthogonalSlidesBitboard != 0)
+            while (orthogonalPieces != 0)
             {
-                int square = BitboardHelper.PopLSB(ref orthogonalSlidesBitboard); // Get the square of the sliding piece.
-                ulong attacks = Magic.GetRookAttacks(square, ~board.ColoredBitboards[2]) & enemyBitboardAndEmptySquares & checkRayMask; // Get the precomputed moves for the sliding piece from that square.
-                // Iterate through all possible moves and add them to the legal moves array.
+                int startingSquare = BitboardHelper.PopLSB(ref orthogonalPieces);
+
+                // Blockers are all pieces (both colors) masked with rook's blocker mask
+                ulong blockers = ~board.ColoredBitboards[2] & Magic.GetRookAttackMask(startingSquare);
+
+                // Calculate attacks given blockers
+                ulong attacks = Magic.GetRookAttacks(startingSquare, blockers) & checkRayMask;
+
+                if ((OrthogonalPinMask & 1ul << startingSquare) != 0)
+                    attacks &= OrthogonalPinMovementMask;
+
+                // Remove friendly squares from attacks
+                attacks &= ~board.ColoredBitboards[board.ColorToMove];
+
                 while (attacks != 0)
                 {
                     int targetSquare = BitboardHelper.PopLSB(ref attacks);
-                    legalMoves[CurrentMoveIndex++] = new Move(square, targetSquare);
+
+                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
                 }
             }
-            while (diagonalSlidesBitboard != 0)
+
+            while (diagonalPieces != 0)
             {
-                int square = BitboardHelper.PopLSB(ref diagonalSlidesBitboard); // Get the square of the sliding piece.
-                ulong attacks = Magic.GetBishopAttacks(square, ~board.ColoredBitboards[2]) & enemyBitboardAndEmptySquares & checkRayMask; // Get the precomputed moves for the sliding piece from that square.
-                // Iterate through all possible moves and add them to the legal moves array.
+                int startingSquare = BitboardHelper.PopLSB(ref diagonalPieces);
+
+                // Blockers are all pieces (both colors) masked with bishop's blocker mask
+                ulong blockers = ~board.ColoredBitboards[2] & Magic.GetBishopAttackMask(startingSquare);
+
+                // Calculate attacks given blockers
+                ulong attacks = Magic.GetBishopAttacks(startingSquare, blockers) & checkRayMask;
+
+                if ((DiagonalPinMask & 1ul << startingSquare) != 0)
+                    attacks &= DiagonalPinMovementMask;
+
+                // Remove friendly squares from attacks
+                attacks &= ~board.ColoredBitboards[board.ColorToMove];
+
                 while (attacks != 0)
                 {
                     int targetSquare = BitboardHelper.PopLSB(ref attacks);
-                    legalMoves[CurrentMoveIndex++] = new Move(square, targetSquare);
+
+                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
                 }
             }
+
         }
 
-        //Sets up all the necessary variables for move generation.
-        //only called from the start of generateLegalMoves. NOT from main.
+
         private static void Init()
         {
-            CurrentMoveIndex = 0; // Reset the current move index to 0.
-            enemyBitboardAndEmptySquares = ~board.ColoredBitboards[board.ColorToMove]; // Get the enemy bitboard and empty squares.
+            CurrentMoveIndex = 0;
+            enemyBitboardAndEmptySquares = ~board.ColoredBitboards[board.ColorToMove];
             IsInCheck = false;
             IsInDoubleCheck = false;
             friendlyKingSquare = BitOperations.TrailingZeroCount(board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.King, board.ColorToMove)]);
             checkRayMask = 0;
+            DiagonalPinMask = 0;
+            DiagonalPinMovementMask = 0;
+            OrthogonalPinMask = 0;
+            OrthogonalPinMovementMask = 0;
 
             enemyAttacks = GetEnemyAttacks();
         }
+
 
         public static ulong GetEnemyAttacks()
         {
@@ -276,7 +337,6 @@ namespace Michael.src.MoveGen
             while (bishops != 0)
             {
                 int square = BitboardHelper.PopLSB(ref bishops);
-                Console.WriteLine(square + " " + friendlyKingSquare);
                 ulong blockers = (~board.ColoredBitboards[2] & Magic.GetBishopAttackMask(square)) ^ 1ul << friendlyKingSquare;
 
                 if ((Magic.GetBishopAttacks(square, blockers) & 1ul << friendlyKingSquare) != 0)
@@ -287,6 +347,13 @@ namespace Michael.src.MoveGen
                     checkRayMask |= BoardHelper.GetAttackTunnel(square, friendlyKingSquare, false);
                 }
 
+                ulong diagonalPin = (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, false) & ~board.ColoredBitboards[2]);
+                if (BitOperations.PopCount(diagonalPin) == 1)
+                {
+                    DiagonalPinMask |= diagonalPin;
+                    DiagonalPinMovementMask = (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, false));
+                    DiagonalPinMovementMask |= 1ul << square;
+                }
                 attacks |= Magic.GetBishopAttacks(square, blockers);
             }
 
@@ -303,6 +370,13 @@ namespace Michael.src.MoveGen
                     checkRayMask |= BoardHelper.GetAttackTunnel(square, friendlyKingSquare, true);
                 }
 
+                ulong orthogonalPin = (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, true) & ~board.ColoredBitboards[2]);
+                if (BitOperations.PopCount(orthogonalPin) == 1)
+                {
+                    DiagonalPinMovementMask = (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, true));
+                    OrthogonalPinMask |= orthogonalPin;
+                    OrthogonalPinMovementMask |= 1ul << square;
+                }
 
                 attacks |= Magic.GetRookAttacks(square, blockers);
             }
@@ -328,6 +402,22 @@ namespace Michael.src.MoveGen
                     IsInCheck = true;
                     checkRayMask |= 1ul << square;
                     checkRayMask |= BoardHelper.GetAttackTunnel(square, friendlyKingSquare, true);
+                }
+
+                ulong diagonalPin = (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, false) & ~board.ColoredBitboards[2]);
+                if (BitOperations.PopCount(diagonalPin) == 1)
+                {
+                    DiagonalPinMask |= diagonalPin;
+                    DiagonalPinMovementMask = (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, false));
+                    DiagonalPinMovementMask |= 1ul << square;
+                }
+
+                ulong orthogonalPin = (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, true) & ~board.ColoredBitboards[2]);
+                if (BitOperations.PopCount(orthogonalPin) == 1)
+                {
+                    OrthogonalPinMask |= orthogonalPin;
+                    OrthogonalPinMovementMask = (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, true));
+                    OrthogonalPinMovementMask |= 1ul << square;
                 }
             }
 

@@ -37,6 +37,9 @@
             RawMove = startingSquare << StartingSquareShift | targetSquare << TargetSquareShift | moveFlag;
         }
 
+        public bool IsCastle()
+            => MoveFlag >= 7;
+
         public bool IsPromotion()
             => MoveFlag >= 2 && MoveFlag <= 5;
 
@@ -56,8 +59,19 @@
         public const int PromotionBishop = 0b0011;
         public const int PromotionRook = 0b0100;
         public const int PromotionQueen = 0b0101;
-        public const int CastleShort = 0b0110;
-        public const int CastleLong = 0b0111;
-        public const int DoublePawnPush = 0b1000;
+        public const int DoublePawnPush = 0b0110;
+        public const int CastleShort = 0b0111;
+        public const int CastleLong = 0b1000;
+    }
+
+    /// <summary>
+    /// Contatins data about castling rights for both players and both sides.
+    /// </summary>
+    public static class CastlingRights
+    {
+        public const int WhiteShort = 0b0001; // White can castle short (kingside)
+        public const int WhiteLong = 0b0010;  // White can castle long (queenside)
+        public const int BlackShort = 0b0100; // Black can castle short (kingside)
+        public const int BlackLong = 0b1000;  // Black can castle long (queenside)
     }
 }

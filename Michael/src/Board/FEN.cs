@@ -1,4 +1,5 @@
 ﻿using Michael.src.Helpers;
+using Michael.src.MoveGen;
 using System.Diagnostics.Metrics;
 
 namespace Michael.src
@@ -71,9 +72,32 @@ namespace Michael.src
                 }
             }
 
+            //Color to move
             board.ColorToMove = fenParts[1] == "w" ? Piece.White : Piece.Black; // Set color to move
+
+            //Castling rights
+            string castlingRightsString = fenParts[2];
+            board.CasltingRight = 0; // Initialize castling rights]
+            if (castlingRightsString != "-")
+            {
+                if (castlingRightsString.Contains('K')) board.CasltingRight |= CastlingRights.WhiteShort;
+                if (castlingRightsString.Contains('Q')) board.CasltingRight |= CastlingRights.WhiteLong;
+                if (castlingRightsString.Contains('k')) board.CasltingRight |= CastlingRights.BlackShort;
+                if (castlingRightsString.Contains('q')) board.CasltingRight |= CastlingRights.BlackLong;
+            }
+
+            //En passant
             if (fenParts[3] != "-")
-            board.EnPassantSquare = Notation.SquareToIndex(fenParts[3]);
+                board.EnPassantSquare = Notation.SquareToIndex(fenParts[3]);
+
+            // Halfmove clock (for 50-move rule)
+            if (fenParts.Length > 4)
+                board.HalfmoveClock = int.Parse(fenParts[4]);
+            else
+                board.HalfmoveClock = 0;
+
+            if (fenParts.Length > 5)
+                board.plyCount = int.Parse(fenParts[5]);
         }
     }
 }

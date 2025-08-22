@@ -48,8 +48,6 @@ namespace Michael.src
         /// </summary>
         public static void LoadBoardFromPositionCommand(string[] commandTokens)
         {
-            //The first token that is a move we should play
-            int startingMoveIndex = 3;
 
             if (commandTokens[1] == "startpos")
             {
@@ -63,7 +61,6 @@ namespace Michael.src
                 {
                     string fenString = string.Join(" ", commandTokens.Skip(2).Take(6));
                     StartNewGame(fenString);
-                    startingMoveIndex = 9;
                 }
             }
             else
@@ -71,24 +68,46 @@ namespace Michael.src
                 return; // Invalid command, do nothing
             }//position startpos moves a2a4 a7a6 a4a5 b7b5 a5b6
 
-            for (int index = startingMoveIndex; index < commandTokens.Length; index++)
+            bool hasSeenMove = false;
+            for (int index = 0; index < commandTokens.Length; index++)
             {
+                if (!hasSeenMove)
+                {
+                    if (commandTokens[index] == "moves")
+                    {
+                        hasSeenMove = true; // Start processing moves after the "moves" token
+                    }
+                    continue; // Skip the "moves" token
+                }
                 //Make each move in the position command.
                 string moveString = commandTokens[index];
                 Move move = Notation.AlgebraicToMove(moveString);
 
+                //En passant
                 if (board.EnPassantSquare == move.TargetSquare && board.Squares[move.StartingSquare] == Piece.Pawn)
                 {
                     board.MakeMove(new Move(move.StartingSquare, move.TargetSquare, MoveFlag.EnPassant));
                     continue;
                 }
+                //Double pawn push
                 else if (Math.Abs(BoardHelper.Rank(move.TargetSquare) - BoardHelper.Rank(move.StartingSquare)) ==2 && Piece.PieceType(board.Squares[move.StartingSquare]) == Piece.Pawn)
                 {
                     board.MakeMove(new Move(move.StartingSquare, move.TargetSquare,MoveFlag.DoublePawnPush));
                     continue;
                 }
+                //Castle
+                if (Piece.PieceType(board.Squares[move.StartingSquare]) == Piece.King && Math.Abs(move.StartingSquare - move.TargetSquare) == 2)
+                {
+                    int flag = MoveFlag.CastleShort;
 
+                    if (BoardHelper.File(move.TargetSquare) == 2)
+                        flag++;
+
+                    board.MakeMove(new Move(move.StartingSquare, move.TargetSquare, flag));
+                    continue;
+                }
                 board.MakeMove(move);
+                board.plyCount++; // Increment the ply count after each move made   
             }
         }
     }

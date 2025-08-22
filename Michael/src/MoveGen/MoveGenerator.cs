@@ -4,15 +4,6 @@ using System.Numerics;
 namespace Michael.src.MoveGen
 {
 
-    /*
-     * LEFT TODO FOR MOVEGEN:
-     * CASTLE
-     * DRAW REPETION
-     * DRAW 50 MOVES
-     * COMPLETE PERFT TESTING
-     * GET AT LEAST 50M NPS ON STARTPOS
-     */
-
     /// <summary>
     /// Provides methods for generating legal moves for a given board position.
     /// Handles all legal move generation, like move generation, legal validation, capture logic etc.
@@ -62,8 +53,8 @@ namespace Michael.src.MoveGen
         {
             board = boardInstance; //Set the board to the current board instance.
             Init(); //Initialize all the necessary variables for move generation.
-
             Move[] legalMoves = new Move[MaxLegalMoves]; // Create an array to hold the legal moves.
+
             GenerateLegalKingMoves(ref legalMoves); // Generate all the legal king moves and add them to the legal moves array.
             if (!IsInDoubleCheck)
             {
@@ -77,10 +68,10 @@ namespace Michael.src.MoveGen
             return legalMoves.AsSpan().Slice(0, CurrentMoveIndex).ToArray(); 
         }
 
-        // /// <summary>
-        // /// Generates all the legal moves for a pawn piece and return to the given legalMoves array.
-        // /// </summary>
-        // /// <param name="legalMoves">the array to return the legal pawn moves</param>
+        /// <summary>
+        /// Generates all the legal moves for a pawn piece and return to the given legalMoves array.
+        /// </summary>
+        /// <param name="legalMoves">the array to return the legal pawn moves</param>
         private static void GenerateLegalPawnMoves(ref Move[] legalMoves)
         {
             int BitboardIndex = BitboardHelper.GetBitboardIndex(Piece.Pawn, board.ColorToMove);
@@ -214,15 +205,40 @@ namespace Michael.src.MoveGen
         /// <param name="legalMoves">the array to return the legal king moves</param>
         public static void GenerateLegalKingMoves(ref Move[] legalMoves)
         {
-            ulong king = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.King, board.ColorToMove)];
-
-            int kingSquare = BitOperations.TrailingZeroCount(king); // Get the square of the king piece.
-
-            ulong kingAttacks = KingMoves[kingSquare] & enemyBitboardAndEmptySquares & ~enemyAttacks; // Get the precomputed moves for the king from that square.
+            
+            ulong kingAttacks = KingMoves[friendlyKingSquare] & enemyBitboardAndEmptySquares & ~enemyAttacks; // Get the precomputed moves for the king from that square.
             while (kingAttacks != 0)
             {
                 int targetSquare = BitboardHelper.PopLSB(ref kingAttacks);
-                legalMoves[CurrentMoveIndex++] = new Move(kingSquare, targetSquare);
+                legalMoves[CurrentMoveIndex++] = new Move(friendlyKingSquare, targetSquare);
+            }
+            //Generate castling moves if the king is not in check and the rook is not moved.
+            int ourCastlingMask = board.ColorToMove == Piece.White ? 0b0011 : 0b1100;
+            if (!IsInCheck && (board.CasltingRight & ourCastlingMask) != 0 && BoardHelper.File(friendlyKingSquare) == 4)
+            {
+                //Generate castling moves for the king.
+                if ((GameState.CanWhiteCastleShort(board.CurrentGameState) && board.ColorToMove == Piece.White) ||
+                    (GameState.CanBlackCastleShort(board.CurrentGameState) && board.ColorToMove == Piece.Black))
+                {
+                    //King side castling
+                    if ((board.Squares[friendlyKingSquare + 1] == Piece.None) && (board.Squares[friendlyKingSquare + 2] == Piece.None))
+                    {
+                        if ((enemyAttacks & 1ul << friendlyKingSquare + 1) == 0 && (enemyAttacks & 1ul << friendlyKingSquare + 2) == 0)
+                        {
+                            legalMoves[CurrentMoveIndex++] = new Move(friendlyKingSquare, friendlyKingSquare + 2, MoveFlag.CastleShort);
+                        }
+                    }
+                }
+                if ((GameState.CanWhiteCastleLong(board.CurrentGameState) && board.ColorToMove == Piece.White) ||
+                    (GameState.CanBlackCastleLong(board.CurrentGameState) && board.ColorToMove == Piece.Black))
+                {
+                    //Queen side castling
+                    if ((board.Squares[friendlyKingSquare - 1] == Piece.None) && (board.Squares[friendlyKingSquare - 2] == Piece.None) && (board.Squares[friendlyKingSquare - 3] == Piece.None) &&
+                            (enemyAttacks & 1ul << friendlyKingSquare - 1) == 0 && (enemyAttacks & 1ul << friendlyKingSquare - 2) == 0)
+                    {
+                        legalMoves[CurrentMoveIndex++] = new Move(friendlyKingSquare, friendlyKingSquare - 2, MoveFlag.CastleLong);
+                    }
+                }
             }
         }
 
@@ -295,7 +311,10 @@ namespace Michael.src.MoveGen
             enemyBitboardAndEmptySquares = ~board.ColoredBitboards[board.ColorToMove];
             IsInCheck = false;
             IsInDoubleCheck = false;
-            friendlyKingSquare = BitOperations.TrailingZeroCount(board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.King, board.ColorToMove)]);
+            ulong kingBB = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.King, board.ColorToMove)];
+            if (kingBB == 0)
+                throw new Exception("King bitboard is empty – invalid board state");
+            friendlyKingSquare = BitOperations.TrailingZeroCount(kingBB);
             checkRayMask = 0;
             DiagonalPinMask = 0;
             DiagonalPinMovementMask = 0;
@@ -432,7 +451,7 @@ namespace Michael.src.MoveGen
                 }
             }
 
-            attacks |= KingMoves[BitOperations.TrailingZeroCount(king)];
+            attacks |= KingMoves[Math.Min(63, BitOperations.TrailingZeroCount(king))];
             if (checkRayMask == 0)
                 checkRayMask = ulong.MaxValue;
 

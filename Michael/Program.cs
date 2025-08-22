@@ -1,5 +1,6 @@
 ﻿using Michael.src;
 using Michael.src.MoveGen;
+using System.Numerics;
 
 //Inits
 Engine.Init();

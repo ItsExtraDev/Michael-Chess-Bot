@@ -117,7 +117,7 @@
             //Loop over all the squares on the board.
             for (int square = 0; square < 64; square++)
             {
-                MoveGenerator.KingMoves[square] = CalculateKingMoves(1ul << square);
+                MoveGenerator.KingMoves[square] = CalculateKingMoves(square);
             }
         }
 
@@ -126,19 +126,23 @@
         /// </summary>
         /// <param name="square">The square the king stands on</param>
         /// <returns>all the squares the king can attack from his starting square.</returns>
-        public static ulong CalculateKingMoves(ulong startingSquare)
+        private static ulong CalculateKingMoves(int square)
         {
             ulong attacks = 0;
-            attacks |= (startingSquare & NotHFile) << 9;  // Move to the right
-            attacks |= (startingSquare) << 8; // Move up
-            attacks |= (startingSquare & NotAFile) << 7;  // Move to the left
-            attacks |= (startingSquare) >> 8; // Move down
-            attacks |= (startingSquare & NotAFile) >> 1;  // Move down-left
-            attacks |= (startingSquare & NotHFile) << 1; // Move down-right
-            attacks |= (startingSquare & NotAFile) >> 9;  // Move left
-            attacks |= (startingSquare & NotHFile) >> 7; // Move up-right
+
+            attacks |= (1ul << square >> 7) & NotAFile;
+            attacks |= (1ul << square << 1) & NotAFile;
+            attacks |= (1ul << square << 9) & NotAFile;
+
+            attacks |= (1ul << square << 7) & NotHFile;
+            attacks |= (1ul << square >> 1) & NotHFile;
+            attacks |= (1ul << square >> 9) & NotHFile;
+
+            attacks |= (1ul << square >> 8);
+            attacks |= (1ul << square << 8);
+
             return attacks;
-        }   
+        }
         #endregion
     }
 }

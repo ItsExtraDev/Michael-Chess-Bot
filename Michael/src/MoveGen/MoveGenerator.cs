@@ -40,6 +40,8 @@ namespace Michael.src.MoveGen
         private static ulong OrthogonalPinMask;
         private static ulong DiagonalPinMovementMask;
         private static ulong OrthogonalPinMovementMask;
+        //If we are generating moves for a qsearch, the only legal moves are captures and king moves.
+        private static ulong movementMask;
 
         public static bool InCheck(Board boardInstance)
         {
@@ -49,10 +51,11 @@ namespace Michael.src.MoveGen
             return IsInCheck;
         }
 
-        public static Move[] GenerateLegalMoves(Board boardInstance)
+        public static Move[] GenerateLegalMoves(Board boardInstance, bool generateCapturesOnly)
         {
             board = boardInstance; //Set the board to the current board instance.
             Init(); //Initialize all the necessary variables for move generation.
+            movementMask = generateCapturesOnly ? board.ColoredBitboards[board.ColorToMove ^ 1] : ulong.MaxValue;
             Move[] legalMoves = new Move[MaxLegalMoves]; // Create an array to hold the legal moves.
 
             GenerateLegalKingMoves(ref legalMoves); // Generate all the legal king moves and add them to the legal moves array.
@@ -90,14 +93,14 @@ namespace Michael.src.MoveGen
             {
                 piecesToCapture |= (1ul << board.EnPassantSquare);
             }
-            ulong CaptureLeft = ((BitboardHelper.ShiftBitboard(pawnsCapture, 8*moveDir) >> 1) & piecesToCapture) & PrecomputeMoveData.NotHFile & checkRayMask;
-            ulong CaptureRight = ((BitboardHelper.ShiftBitboard(pawnsCapture, 8*moveDir) << 1) & piecesToCapture) & PrecomputeMoveData.NotAFile & checkRayMask;
+            ulong CaptureLeft = ((BitboardHelper.ShiftBitboard(pawnsCapture, 8*moveDir) >> 1) & piecesToCapture) & PrecomputeMoveData.NotHFile & checkRayMask & movementMask;
+            ulong CaptureRight = ((BitboardHelper.ShiftBitboard(pawnsCapture, 8*moveDir) << 1) & piecesToCapture) & PrecomputeMoveData.NotAFile & checkRayMask & movementMask;
             oneRankPush &= board.ColoredBitboards[2];
             ulong twoRankPush = (BitboardHelper.ShiftBitboard(oneRankPush, 8*moveDir)) & board.ColoredBitboards[2] & checkRayMask;
 
             //Make sure a pawn can push 2 squares only if on the starting square
-            twoRankPush &= (board.ColorToMove == Piece.White ?  BitboardHelper.Rank4 : BitboardHelper.Rank5);
-            oneRankPush &= checkRayMask;
+            twoRankPush &= (board.ColorToMove == Piece.White ?  BitboardHelper.Rank4 : BitboardHelper.Rank5) & movementMask;
+            oneRankPush &= checkRayMask & movementMask;
 
 
             //One rank push
@@ -189,7 +192,7 @@ namespace Michael.src.MoveGen
             while (knightBitboard != 0)
             {
                 int knightSquare = BitboardHelper.PopLSB(ref knightBitboard); // Get the square of the knight piece.
-                ulong attacks = KnightMoves[knightSquare] & enemyBitboardAndEmptySquares & checkRayMask; // Get the precomputed moves for the knight from that square.
+                ulong attacks = KnightMoves[knightSquare] & enemyBitboardAndEmptySquares & checkRayMask & movementMask; // Get the precomputed moves for the knight from that square.
                 // Iterate through all possible moves and add them to the legal moves array.
                 while (attacks != 0)
                 {
@@ -207,14 +210,20 @@ namespace Michael.src.MoveGen
         {
             
             ulong kingAttacks = KingMoves[friendlyKingSquare] & enemyBitboardAndEmptySquares & ~enemyAttacks; // Get the precomputed moves for the king from that square.
+            if (!IsInCheck)
+            {
+                kingAttacks &= movementMask;
+            }
+
             while (kingAttacks != 0)
             {
                 int targetSquare = BitboardHelper.PopLSB(ref kingAttacks);
                 legalMoves[CurrentMoveIndex++] = new Move(friendlyKingSquare, targetSquare);
             }
+
             //Generate castling moves if the king is not in check and the rook is not moved.
             int ourCastlingMask = board.ColorToMove == Piece.White ? 0b0011 : 0b1100;
-            if (!IsInCheck && (board.CasltingRight & ourCastlingMask) != 0 && BoardHelper.File(friendlyKingSquare) == 4)
+            if (movementMask != ulong.MaxValue && !IsInCheck && (board.CasltingRight & ourCastlingMask) != 0 && BoardHelper.File(friendlyKingSquare) == 4)
             {
                 //Generate castling moves for the king.
                 if ((GameState.CanWhiteCastleShort(board.CurrentGameState) && board.ColorToMove == Piece.White) ||
@@ -262,7 +271,7 @@ namespace Michael.src.MoveGen
                 ulong blockers = ~board.ColoredBitboards[2] & Magic.GetRookAttackMask(startingSquare);
 
                 // Calculate attacks given blockers
-                ulong attacks = Magic.GetRookAttacks(startingSquare, blockers) & checkRayMask;
+                ulong attacks = Magic.GetRookAttacks(startingSquare, blockers) & checkRayMask & movementMask;
 
                 if ((OrthogonalPinMask & 1ul << startingSquare) != 0)
                     attacks &= OrthogonalPinMovementMask;
@@ -286,7 +295,7 @@ namespace Michael.src.MoveGen
                 ulong blockers = ~board.ColoredBitboards[2] & Magic.GetBishopAttackMask(startingSquare);
 
                 // Calculate attacks given blockers
-                ulong attacks = Magic.GetBishopAttacks(startingSquare, blockers) & checkRayMask;
+                ulong attacks = Magic.GetBishopAttacks(startingSquare, blockers) & checkRayMask & movementMask;
 
                 if ((DiagonalPinMask & 1ul << startingSquare) != 0)
                     attacks &= DiagonalPinMovementMask;

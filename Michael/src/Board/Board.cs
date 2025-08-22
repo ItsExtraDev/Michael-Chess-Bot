@@ -70,6 +70,10 @@ namespace Michael.src
         //Create the array before the game starts to avoid allocating memory every time we need to generate legal moves.
         Move[] legalMoves;
 
+        // Zobrist
+        public ulong CurrentHash;
+        private Dictionary<ulong, int> repetitionCounts = new Dictionary<ulong, int>();
+
         /// <summary>
         /// Instantiates a board and automatically loads the starting position.
         /// The position can be changed by passing a custom FEN string.
@@ -78,6 +82,8 @@ namespace Michael.src
         public Board(string fenString = FEN.StartingFEN)
         {
             LoadFen(fenString);
+            CurrentHash = Zobrist.ComputeHash(this);
+            repetitionCounts[CurrentHash] = 1;
         }
 
         public bool IsInCheck()
@@ -88,7 +94,6 @@ namespace Michael.src
             }
             InCheck = MoveGenerator.InCheck(this);
             hasCachedCheck = true;
-
             return InCheck;
         }
 
@@ -98,8 +103,13 @@ namespace Michael.src
         public bool IsInStalemate()
             => !IsInCheck() && GetLegalMoves().Length == 0;
 
+        public bool IsThreefoldRepetition()
+        {
+            return repetitionCounts.TryGetValue(CurrentHash, out int count) && count >= 3;
+        }
+
         public bool IsDraw()
-            => IsInStalemate() || IsFiftyMoveRuleDraw();
+            => IsInStalemate() || IsFiftyMoveRuleDraw() || IsThreefoldRepetition();
 
         public bool IsFiftyMoveRuleDraw()
             => HalfmoveClock >= 100;
@@ -113,15 +123,17 @@ namespace Michael.src
         {
             FEN.LoadFEN(this, fenString);
             CurrentGameState = GameState.MakeGameState(Piece.None, Piece.None, EnPassantSquare, CasltingRight); // Initialize the game state
+            CurrentHash = Zobrist.ComputeHash(this);
+            repetitionCounts[CurrentHash] = 1;
         }
 
         /// <summary>
         /// Gets all the legal moves in the current position and returns them as an array of moves.
         /// </summary>
         /// <returns>An array of all the legal moves in the position</returns>
-        public Move[] GetLegalMoves()
+        public Move[] GetLegalMoves(bool GenerateCapturesOnly = false)
         {
-            legalMoves = MoveGenerator.GenerateLegalMoves(this);
+            legalMoves = MoveGenerator.GenerateLegalMoves(this, GenerateCapturesOnly);
 
             return legalMoves;
         }
@@ -273,6 +285,14 @@ namespace Michael.src
             moveHistory.Add(move); // Add the move to the history
             ColorToMove ^= 1; // Switch the turn to the other player (0 for white, 1 for black)
             HalfmoveClockHistory.Add(HalfmoveClock); plyCount++; // Increment the ply count for the current turn
+            hasCachedCheck = false;
+
+            // Update Zobrist hash
+            CurrentHash = Zobrist.ComputeHash(this);
+            if (!repetitionCounts.ContainsKey(CurrentHash))
+                repetitionCounts[CurrentHash] = 1;
+            else
+                repetitionCounts[CurrentHash]++;
         }
 
         public void UndoMove(Move move)
@@ -348,6 +368,16 @@ namespace Michael.src
             HalfmoveClock = HalfmoveClockHistory.Last();
             HalfmoveClockHistory.RemoveAt(HalfmoveClockHistory.Count - 1);
             plyCount--; // Decrement the ply count for the current turn
+            hasCachedCheck = false;
+
+            // Update Zobrist hash
+            if (repetitionCounts.ContainsKey(CurrentHash))
+            {
+                repetitionCounts[CurrentHash]--;
+                if (repetitionCounts[CurrentHash] == 0)
+                    repetitionCounts.Remove(CurrentHash);
+            }
+            CurrentHash = Zobrist.ComputeHash(this);
         }
     }
 }

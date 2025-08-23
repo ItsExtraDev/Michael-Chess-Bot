@@ -1,4 +1,5 @@
-﻿using Michael.src.Bot.Search;
+﻿using Michael.src.Bot;
+using Michael.src.Bot.Search;
 using Michael.src.Helpers;
 using Michael.src.MoveGen;
 
@@ -36,9 +37,9 @@ namespace Michael.src
         /// Returns the best move for the current position on the board, according to the engine.
         /// </summary>
         /// <returns>The best move in the current position</returns>
-        public static Move GetBestMove()
+        public static Move GetBestMove(Clock MatchClock)
         {
-            return Searcher.GetBestMove(board);
+            return Searcher.GetBestMove(board, MatchClock);
         }
 
         /// <summary>

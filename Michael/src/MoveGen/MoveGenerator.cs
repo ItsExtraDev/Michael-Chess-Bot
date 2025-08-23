@@ -223,7 +223,7 @@ namespace Michael.src.MoveGen
 
             //Generate castling moves if the king is not in check and the rook is not moved.
             int ourCastlingMask = board.ColorToMove == Piece.White ? 0b0011 : 0b1100;
-            if (movementMask != ulong.MaxValue && !IsInCheck && (board.CasltingRight & ourCastlingMask) != 0 && BoardHelper.File(friendlyKingSquare) == 4)
+            if (movementMask == ulong.MaxValue && !IsInCheck && (board.CasltingRight & ourCastlingMask) != 0 && BoardHelper.File(friendlyKingSquare) == 4)
             {
                 //Generate castling moves for the king.
                 if ((GameState.CanWhiteCastleShort(board.CurrentGameState) && board.ColorToMove == Piece.White) ||

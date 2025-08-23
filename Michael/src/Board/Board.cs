@@ -138,6 +138,10 @@ namespace Michael.src
             return legalMoves;
         }
 
+        public void MakeNullMove()
+        {
+            ColorToMove ^= 1;
+        }
 
         /// <summary>
         /// Makes a move on the board. updates bitboards and square array.
@@ -370,12 +374,12 @@ namespace Michael.src
             plyCount--; // Decrement the ply count for the current turn
             hasCachedCheck = false;
 
-            // Update Zobrist hash
-            if (repetitionCounts.ContainsKey(CurrentHash))
+            ulong previousHash = CurrentHash;
+            if (repetitionCounts.ContainsKey(previousHash))
             {
-                repetitionCounts[CurrentHash]--;
-                if (repetitionCounts[CurrentHash] == 0)
-                    repetitionCounts.Remove(CurrentHash);
+                repetitionCounts[previousHash]--;
+                if (repetitionCounts[previousHash] == 0)
+                    repetitionCounts.Remove(previousHash);
             }
             CurrentHash = Zobrist.ComputeHash(this);
         }

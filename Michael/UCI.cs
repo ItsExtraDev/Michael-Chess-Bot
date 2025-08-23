@@ -1,4 +1,5 @@
 ﻿using Michael.src;
+using Michael.src.Bot;
 using Michael.src.Helpers;
 
 /// <summary>
@@ -46,7 +47,8 @@ public static class UCI
                         return; // Exit after perft test
                     }
                 }
-                string bestMoveString = Notation.MoveToAlgebraic(Engine.GetBestMove());
+                
+                string bestMoveString = Notation.MoveToAlgebraic(Engine.GetBestMove(SetUpClock(tokens)));
                 Console.WriteLine($"bestmove {bestMoveString}");
                 break;
 
@@ -66,5 +68,24 @@ public static class UCI
                 Console.WriteLine("Unknown command: " + string.Join(' ', tokens));
                 break;
         }
+    }
+
+    public static Clock SetUpClock(string[] tokens)
+    {
+        int color = Engine.board.ColorToMove;
+        int timeLeftInMs = int.Parse(tokens[color == Piece.White ? 2 : 4]);
+        int movesToGo = 0;
+        int incrament = 0;
+
+        for (int i = 0; i < tokens.Length; i++)
+        {
+            if ((tokens[i] == "winc" && color == Piece.White) ||
+                (tokens[i] == "binc" && color == Piece.Black))
+                incrament = int.Parse(tokens[i + 1]);
+
+            else if (tokens[i] == "movestogo")
+                movesToGo = int.Parse(tokens[i + 1]);
+        }
+        return new Clock(timeLeftInMs, movesToGo, incrament);
     }
 }

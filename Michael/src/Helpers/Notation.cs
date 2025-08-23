@@ -74,10 +74,10 @@ namespace Michael.src.Helpers
         {
             string startingSquare = IndexToSquare(move.StartingSquare);
             string targetSquare = IndexToSquare(move.TargetSquare);
-            char moveFlag = ' ';
+            string moveFlag = "";
             if (move.IsPromotion())
             {
-                moveFlag = char.ToLower(Piece.PieceTypeToSymbol(move.MoveFlag));
+                moveFlag = Piece.PieceTypeToSymbol(move.MoveFlag).ToString().ToLower();
             }
             return $"{startingSquare}{targetSquare}{moveFlag}";
         }

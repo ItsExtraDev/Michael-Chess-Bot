@@ -2,27 +2,32 @@
 using Michael.src.Helpers;
 using Michael.src.MoveGen;
 using System.Diagnostics;
-using static System.Formats.Asn1.AsnWriter;
 
 namespace Michael.src.Bot.Search
 {
-
     /*
      * TODO:
+     * 
+     * Search:
+     * negaminx
+     * alpha beta pruning
      * qsearch
-     * time management
+     * illetrive deepening
+     * time managment
+     * move ordering
      * aspiration windows
      * null move pruning
      * late move reductions
      * transposition table
      * killer moves
      * 
+     * Evaluation:
+     * mg piece table
+     * eg piece table
+     * mop up
+     * piece values
      * opening book
-     * add random bit to draw detections to avoid 3-fold repetition draws in even but not drawn positions
-     * early game piece square tables
-     * end game piece square tables
      * piece mobility
-     * mop up score in endgame
      * king safety
      * pawn structure evaluation
      */
@@ -30,110 +35,79 @@ namespace Michael.src.Bot.Search
     public static class Searcher
     {
         private static Board board;
-        private static Move BestMove = Move.NullMove();
-        private static Move BestMoveThisIteration;
-        private static int MaxInt = 100000;
-        private static int MaxDepth = 7;
-        private static int Depth;
-        private static int NodesSearched;
+        private static Move BestMove;
+        private static int MaxDepth = 3;
+        private static int BigNumber = 10000;
+        private static string[] pvMoves = new string[MaxDepth];
+        private static int TotalNodes;
 
-        public static Move GetBestMove(Board boardInstance)
+
+        public static Move GetBestMove(Board boardInstance, Clock MatchClock)
         {
             board = boardInstance;
-            BestMoveThisIteration = Move.NullMove();
 
-            for (Depth = 1; Depth <= MaxDepth; Depth++)
-            {
-                BestMoveThisIteration = BestMove;
-                NodesSearched = 0;
-                Stopwatch stopwatch = Stopwatch.StartNew();
-                int eval = Search(Depth, -MaxInt, MaxInt);
-                stopwatch.Stop();
+            BestMove = Move.NullMove();
+            TotalNodes = 0;
 
-                SendInfoMessage(Depth, eval, NodesSearched, NodesSearched / Math.Max(1, (int)stopwatch.Elapsed.Seconds));
+            Stopwatch stopwatch = Stopwatch.StartNew();
 
-            }
+            int eval = Search(MaxDepth);
+            stopwatch.Stop();
+
+            SendInfoMessage(eval, (int)stopwatch.ElapsedMilliseconds);
+
             return BestMove;
         }
 
-        public static int Search(int depth,int alpha, int beta)
+        /// <summary>
+        /// Performs a search on the current position based on the negamax algorithm.
+        /// in a simplified version, it plays every legal move in the board to some depth, and evaluats the board
+        /// and chooses the move that leades to the best evaluation.
+        /// more information can be found at: https://www.chessprogramming.org/Negamax
+        /// </summary>
+        /// <param name="depth">how many moves ahead should we look?</param>
+        /// <returns>the evaluation of the board state when looked to the depth of {depth}</returns>
+        public static int Search(int depth)
         {
-            if (depth == 0)
-            {
-                return Quiesce(alpha, beta);
-            }
-
             if (board.IsDraw())
-            {
                 return 0;
-            }
 
             if (board.IsCheckmate())
-            {
-                return -MaxInt + board.plyCount; // avoid overflow
-            }
+                return -BigNumber + board.plyCount;
 
+            if (depth == 0)
+                return Evaluator.Evaluate(board);
 
-            var moves = board.GetLegalMoves();
-            MoveOrderer.OrderMoves(board, /*(depth == Depth) ? BestMoveThisIteration : TODO use it!*/ Move.NullMove(), ref moves);
+            Move[] legalMoves = board.GetLegalMoves();
 
-            int bestEval = -MaxInt;
-            foreach (var move in moves)
+            int bestEvaluation = -BigNumber;
+            foreach (Move move in legalMoves)
             {
                 board.MakeMove(move);
-                NodesSearched++;
-                int eval = -Search(depth - 1, -beta, -alpha);
+                int eval = -Search(depth - 1);
                 board.UndoMove(move);
-                if (eval > bestEval)
+
+                if (eval > bestEvaluation)
                 {
-                    bestEval = eval;
-                    if (depth == Depth)
+                    bestEvaluation = eval;
+                    pvMoves[MaxDepth - depth] = Notation.MoveToAlgebraic(move);
+                    if (depth == MaxDepth)
                     {
                         BestMove = move;
                     }
                 }
-                alpha = Math.Max(alpha, eval);
-                if (beta <= alpha)
-                {
-                    break; // beta cutoff
-                }
-            }
-            return bestEval;
-        }
-
-        private static int Quiesce(int alpha, int beta)
-        {
-            int static_eval = Evaluator.Evaluate(board);
-
-            // Stand Pat
-            int best_value = static_eval;
-            if (best_value >= beta)
-                return best_value;
-            if (best_value > alpha)
-                alpha = best_value;
-
-            Move[] legalMoves = board.GetLegalMoves(true);
-            MoveOrderer.OrderMoves(board, Move.NullMove(), ref legalMoves);
-            foreach (Move move in legalMoves.Reverse())  {
-                board.MakeMove(move);
-                int score = -Quiesce(-beta, -alpha);
-                board.UndoMove(move);
-
-                if (score >= beta)
-                    return score;
-                if (score > best_value)
-                    best_value = score;
-                if (score > alpha)
-                    alpha = score;
             }
 
-            return best_value;
+            return bestEvaluation;
         }
 
-
-        public static void SendInfoMessage(int depth, int eval, int nodes, int nps)
+        /// <summary>
+        /// Sends a message with useful message to the GUI, such as what depth we are searching,
+        /// how many nodes we looked at, what is the best line, etc.
+        /// </summary>
+        public static void SendInfoMessage(int eval, int searchTimeInMS)
         {
-            Console.WriteLine($"info depth {depth} score cp {eval} nodes {nodes} nps {nps} pv {Notation.MoveToAlgebraic(BestMove)}");
+            Console.WriteLine($"info depth {MaxDepth} score cp {eval} nodes {TotalNodes} nps {TotalNodes * (Math.Max(0.001, searchTimeInMS) * 1000)} pv {string.Join(' ', pvMoves)}");
         }
     }
 }

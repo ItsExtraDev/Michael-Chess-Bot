@@ -36,7 +36,7 @@ namespace Michael.src.Bot.Search
     {
         private static Board board;
         private static Move BestMove;
-        private static int MaxDepth = 3;
+        private static int MaxDepth = 5;
         private static int BigNumber = 10000;
         private static string[] pvMoves = new string[MaxDepth];
         private static int TotalNodes;
@@ -51,7 +51,7 @@ namespace Michael.src.Bot.Search
 
             Stopwatch stopwatch = Stopwatch.StartNew();
 
-            int eval = Search(MaxDepth);
+            int eval = Search(MaxDepth, -BigNumber, BigNumber);
             stopwatch.Stop();
 
             SendInfoMessage(eval, (int)stopwatch.ElapsedMilliseconds);
@@ -67,7 +67,7 @@ namespace Michael.src.Bot.Search
         /// </summary>
         /// <param name="depth">how many moves ahead should we look?</param>
         /// <returns>the evaluation of the board state when looked to the depth of {depth}</returns>
-        public static int Search(int depth)
+        public static int Search(int depth, int alpha, int beta)
         {
             if (board.IsDraw())
                 return 0;
@@ -79,12 +79,14 @@ namespace Michael.src.Bot.Search
                 return Evaluator.Evaluate(board);
 
             Move[] legalMoves = board.GetLegalMoves();
+            MoveOrderer.OrderMoves(board, ref legalMoves);
 
             int bestEvaluation = -BigNumber;
             foreach (Move move in legalMoves)
             {
+                TotalNodes++;
                 board.MakeMove(move);
-                int eval = -Search(depth - 1);
+                int eval = -Search(depth - 1, -beta, -alpha);
                 board.UndoMove(move);
 
                 if (eval > bestEvaluation)
@@ -95,6 +97,9 @@ namespace Michael.src.Bot.Search
                     {
                         BestMove = move;
                     }
+                    alpha = Math.Max(eval, alpha);
+                    if (alpha >= beta)
+                        break; //Cut off
                 }
             }
 

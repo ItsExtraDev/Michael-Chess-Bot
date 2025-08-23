@@ -6,7 +6,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
-    <BaseOutputPath>C:\Users\Moty\OneDrive\Desktop\Coding\Michael\Michael\bin\Versions\V1 - Basic search and piece counting</BaseOutputPath>
+    <BaseOutputPath>C:\Users\Moty\OneDrive\Desktop\Coding\Michael\Michael\bin\Versions\V2 - alpha beta pruning, move ordering and qsearch</BaseOutputPath>
   </PropertyGroup>
 
 </Project>

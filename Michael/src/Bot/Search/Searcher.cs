@@ -5,114 +5,210 @@ using System.Diagnostics;
 
 namespace Michael.src.Bot.Search
 {
-    /*
-     * TODO:
+    /* * TODO:
      * 
      * Search:
-     * negaminx
-     * alpha beta pruning
-     * qsearch
-     * illetrive deepening
-     * time managment
-     * move ordering
-     * aspiration windows
-     * null move pruning
-     * late move reductions
-     * transposition table
-     * killer moves
+     * aspiration windows 
+     * null move pruning 
+     * late move reductions 
+     * killer moves 
      * 
-     * Evaluation:
-     * mg piece table
-     * eg piece table
-     * mop up
-     * piece values
-     * opening book
-     * piece mobility
-     * king safety
+     * Evaluation: 
+     * eg piece table 
+     * mop up 
+     * opening book 
+     * piece mobility 
+     * king safety 
      * pawn structure evaluation
-     */
+     * 
+     * More:
+     * bug in 3 move repetition. probably in undo move. even if winning sometimes evaluate draw.
+     * my best guess? calculate 3 fold repetiotn and automaticly detects a draw.
+     * improve time managment
+     * */
 
     public static class Searcher
     {
         private static Board board;
         private static Move BestMove;
-        private static int MaxDepth = 5;
-        private static int BigNumber = 10000;
-        private static string[] pvMoves = new string[MaxDepth];
+        private static int MaxDepth = 3;
+        private static int BigNumber = 100000;
+        private static int Depth;
         private static int TotalNodes;
 
+        private static string[][] pvTable;
+        private static string[] pvMoves;
 
-        public static Move GetBestMove(Board boardInstance, Clock MatchClock)
+        public static Move GetBestMove(Board boardInstance, Clock matchClock)
         {
             board = boardInstance;
 
-            BestMove = Move.NullMove();
-            TotalNodes = 0;
+            // Initialize PV Table
+            pvTable = new string[MaxDepth + 1][];
+            for (int i = 0; i <= MaxDepth; i++)
+                pvTable[i] = new string[MaxDepth + 1];
+
+            // Dynamic time allocation
+            int buffer = 50; // ms reserved as safety
+            int softTime = Math.Max(matchClock.TimeLeftInMS / Math.Max(30, matchClock.MovesToGo), 50); // base time
+            softTime += matchClock.Incrament / 2; // use part of increment
+            int hardTime = softTime * 3; // absolute emergency stop
+            if (softTime > matchClock.TimeLeftInMS - buffer) softTime = matchClock.TimeLeftInMS - buffer;
 
             Stopwatch stopwatch = Stopwatch.StartNew();
 
-            int eval = Search(MaxDepth, -BigNumber, BigNumber);
+            // Iterative Deepening
+            for (Depth = 1; Depth <= MaxDepth; Depth++)
+            {
+                TotalNodes = 0;
+
+                int eval = Search(Depth, -BigNumber, BigNumber);
+
+                SendInfoMessage(eval, (int)stopwatch.ElapsedMilliseconds);
+
+                // Soft limit check
+                if (stopwatch.ElapsedMilliseconds >= softTime)
+                    break;
+
+                // Hard limit emergency stop
+                if (stopwatch.ElapsedMilliseconds >= hardTime)
+                    break;
+            }
+
             stopwatch.Stop();
-
-            SendInfoMessage(eval, (int)stopwatch.ElapsedMilliseconds);
-
             return BestMove;
         }
 
         /// <summary>
-        /// Performs a search on the current position based on the negamax algorithm.
-        /// in a simplified version, it plays every legal move in the board to some depth, and evaluats the board
-        /// and chooses the move that leades to the best evaluation.
-        /// more information can be found at: https://www.chessprogramming.org/Negamax
+        /// Negamax with Alpha-Beta and PV Table
         /// </summary>
-        /// <param name="depth">how many moves ahead should we look?</param>
-        /// <returns>the evaluation of the board state when looked to the depth of {depth}</returns>
-        public static int Search(int depth, int alpha, int beta)
+        private static int Search(int depth, int alpha, int beta)
         {
-            if (board.IsDraw())
+            ulong hash = Zobrist.ComputeHash(board);
+
+            // Transposition Table Lookup
+            if (TranspositionTable.TryGet(hash, out TTEntry ttEntry))
+            {
+                if (ttEntry.Depth >= depth)
+                {
+                    if (ttEntry.Type == NodeType.Exact) return ttEntry.Score;
+                    if (ttEntry.Type == NodeType.Alpha && ttEntry.Score <= alpha) return alpha;
+                    if (ttEntry.Type == NodeType.Beta && ttEntry.Score >= beta) return beta;
+                }
+            }
+
+            if (board.IsDraw()) 
                 return 0;
 
-            if (board.IsCheckmate())
+            if (board.IsCheckmate()) 
                 return -BigNumber + board.plyCount;
 
             if (depth == 0)
-                return Evaluator.Evaluate(board);
+                return QSearch(alpha, beta);
 
             Move[] legalMoves = board.GetLegalMoves();
-            MoveOrderer.OrderMoves(board, ref legalMoves);
+            MoveOrderer.OrderMoves(board, ref legalMoves, pvMove: BestMove);
 
-            int bestEvaluation = -BigNumber;
-            foreach (Move move in legalMoves)
+
+            int bestEval = -BigNumber;
+            Move bestMove = Move.NullMove();
+
+            for (int i = 0; i < legalMoves.Length; i++)
             {
+                Move move = legalMoves[i];
+
                 TotalNodes++;
                 board.MakeMove(move);
                 int eval = -Search(depth - 1, -beta, -alpha);
                 board.UndoMove(move);
 
-                if (eval > bestEvaluation)
+                if (eval > bestEval)
                 {
-                    bestEvaluation = eval;
-                    pvMoves[MaxDepth - depth] = Notation.MoveToAlgebraic(move);
-                    if (depth == MaxDepth)
+                    bestEval = eval;
+                    bestMove = move;
+
+                    // Update PV
+                    pvTable[depth][0] = Notation.MoveToAlgebraic(move);
+                    if (depth > 1)
+                        Array.Copy(pvTable[depth - 1], 0, pvTable[depth], 1, MaxDepth - 1);
+
+                    if (depth == Depth)
                     {
                         BestMove = move;
+                        pvMoves = pvTable[depth].Where(m => m != null).ToArray();
                     }
-                    alpha = Math.Max(eval, alpha);
-                    if (alpha >= beta)
-                        break; //Cut off
+
+                    alpha = Math.Max(alpha, eval);
+                    if (alpha >= beta) break; // Cut-off
                 }
             }
 
-            return bestEvaluation;
+            // Store in TT
+            NodeType nodeType = NodeType.Exact;
+            if (bestEval <= alpha) nodeType = NodeType.Alpha;
+            else if (bestEval >= beta) nodeType = NodeType.Beta;
+
+            TranspositionTable.Store(hash, new TTEntry
+            {
+                ZobristKey = hash,
+                Depth = depth,
+                Score = bestEval,
+                Type = nodeType,
+                BestMove = bestMove
+            });
+
+            return bestEval;
         }
 
         /// <summary>
-        /// Sends a message with useful message to the GUI, such as what depth we are searching,
-        /// how many nodes we looked at, what is the best line, etc.
+        /// Quiescence Search for better leaf evaluation
+        /// </summary>
+        private static int QSearch(int alpha, int beta)
+        {
+            int standPat = Evaluator.Evaluate(board);
+            if (standPat >= beta) return beta;
+            if (alpha < standPat) alpha = standPat;
+
+            Move[] captures = board.GetLegalMoves(true);
+            MoveOrderer.OrderMoves(board, ref captures);
+
+            foreach (Move move in captures)
+            {
+                TotalNodes++;
+                board.MakeMove(move);
+                int score = -QSearch(-beta, -alpha);
+                board.UndoMove(move);
+
+                if (score >= beta) return beta;
+                if (score > alpha) alpha = score;
+            }
+            return alpha;
+        }
+
+        /// <summary>
+        /// UCI Info Output
         /// </summary>
         public static void SendInfoMessage(int eval, int searchTimeInMS)
         {
-            Console.WriteLine($"info depth {MaxDepth} score cp {eval} nodes {TotalNodes} nps {TotalNodes * (Math.Max(0.001, searchTimeInMS) * 1000)} pv {string.Join(' ', pvMoves)}");
+            double nps = (TotalNodes / Math.Max(1, searchTimeInMS)) * 1000;
+            Console.WriteLine($"info depth {Depth} score cp {eval} nodes {TotalNodes} nps {nps} pv {string.Join(' ', pvMoves ?? Array.Empty<string>())}");
+        }
+
+        /// <summary>
+        /// If a move is a capture, promotion or a check, returns false.
+        /// otherwise true
+        /// </summary>
+        /// <returns>If a move is quiet</returns>
+        public static bool IsMoveQuiet(Move move)
+        {
+            if (move.IsPromotion())
+                return false;
+
+            board.MakeMove(move);
+            if (GameState.IsCapture(board.CurrentGameState) || board.IsInCheck())
+                return false;
+            board.UndoMove(move);
+            return true;
         }
     }
 }

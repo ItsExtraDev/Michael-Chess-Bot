@@ -5,27 +5,37 @@ namespace Michael.src.Bot.Search
 {
     public static class MoveOrderer
     {
-        public static void OrderMoves(Board board, ref Move[] moves)
+        public static void OrderMoves(Board board, ref Move[] moves, Move? pvMove = null)
         {
-            // Simple move ordering: prioritize captures and checks
             Array.Sort(moves, (move1, move2) =>
             {
-                int score1 = 0;
-                int score2 = 0;
-
-                // Prioritize captures
-                if (!BitboardHelper.IsBitSet(board.ColoredBitboards[2], move1.TargetSquare))
-                    score1 += 10 * (Piece.PieceType(board.Squares[move1.TargetSquare]) - Piece.PieceType(board.Squares[move1.StartingSquare]));
-                if (!BitboardHelper.IsBitSet(board.ColoredBitboards[2], move2.TargetSquare))
-                    score2 += 10 * (Piece.PieceType(board.Squares[move2.TargetSquare]) - Piece.PieceType(board.Squares[move2.StartingSquare]));
-
-                if (move1.IsPromotion())
-                    score1 += 900;
-                if (move2.IsPromotion())
-                    score2 += 900;
-                return score1.CompareTo(score2); // Higher score first
-
+                int score1 = GetMoveScore(board, move1, pvMove);
+                int score2 = GetMoveScore(board, move2, pvMove);
+                return score2.CompareTo(score1); // Higher score first
             });
+        }
+
+        private static int GetMoveScore(Board board, Move move, Move? pvMove)
+        {
+            int score = 0;
+
+            // Principal Variation move gets the highest priority
+            if (pvMove != null && move.StartingSquare == pvMove.StartingSquare && move.TargetSquare == pvMove.TargetSquare && move.MoveFlag == pvMove.MoveFlag)
+                score += 1000000;
+
+            // MVV-LVA (capture ordering)
+            if (!BitboardHelper.IsBitSet(board.ColoredBitboards[2], move.TargetSquare))
+            {
+                int capturedValue = Piece.PieceType(board.Squares[move.TargetSquare]);
+                int attackerValue = Piece.PieceType(board.Squares[move.StartingSquare]);
+                score += 10 * (capturedValue - attackerValue);
+            }
+
+            // Promotion bonus
+            if (move.IsPromotion())
+                score += 900;
+
+            return score;
         }
     }
 }

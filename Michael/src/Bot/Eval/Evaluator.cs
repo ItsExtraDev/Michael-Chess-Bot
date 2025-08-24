@@ -22,6 +22,7 @@ namespace Michael.src.Bot.Eval
             int eval = 0;
 
             eval += CountMaterial();
+            eval += Activity.EvaluatePieceSquares(board);
 
             int colorBias = board.ColorToMove == Piece.White ? 1 : -1;
 

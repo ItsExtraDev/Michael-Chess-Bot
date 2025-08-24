@@ -72,7 +72,7 @@ namespace Michael.src
 
         // Zobrist
         public ulong CurrentHash;
-        private Dictionary<ulong, int> repetitionCounts = new Dictionary<ulong, int>();
+        public Dictionary<ulong, int> repetitionCounts = new Dictionary<ulong, int>();
 
         /// <summary>
         /// Instantiates a board and automatically loads the starting position.
@@ -125,6 +125,7 @@ namespace Michael.src
             CurrentGameState = GameState.MakeGameState(Piece.None, Piece.None, EnPassantSquare, CasltingRight); // Initialize the game state
             CurrentHash = Zobrist.ComputeHash(this);
             repetitionCounts[CurrentHash] = 1;
+            HalfmoveClockHistory.Add(HalfmoveClock);
         }
 
         /// <summary>
@@ -297,6 +298,7 @@ namespace Michael.src
                 repetitionCounts[CurrentHash] = 1;
             else
                 repetitionCounts[CurrentHash]++;
+
         }
 
         public void UndoMove(Move move)
@@ -369,8 +371,8 @@ namespace Michael.src
             EnPassantSquare = GameState.GetEnPassantSquare(CurrentGameState); // Restore the en passant square from the game state
             ColorToMove ^= 1; // Switch the turn back to the previous player (0 for white, 1 for black)
             CasltingRight = GameState.GetCastlingRights(CurrentGameState); // Restore the castling rights from the game state
-            HalfmoveClock = HalfmoveClockHistory.Last();
             HalfmoveClockHistory.RemoveAt(HalfmoveClockHistory.Count - 1);
+            HalfmoveClock = HalfmoveClockHistory.Last();
             plyCount--; // Decrement the ply count for the current turn
             hasCachedCheck = false;
 

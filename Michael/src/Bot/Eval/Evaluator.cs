@@ -19,6 +19,12 @@ namespace Michael.src.Bot.Eval
         {
             board = boardInstance;
 
+            if (board.IsDraw())
+                return 0;
+
+            if (board.IsCheckmate())
+                return -100000 + board.plyCount;
+
             int eval = 0;
 
             eval += CountMaterial();

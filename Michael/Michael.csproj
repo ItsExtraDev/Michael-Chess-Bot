@@ -6,7 +6,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
-    <BaseOutputPath>C:\Users\Moty\OneDrive\Desktop\Coding\Michael\Michael\bin\Versions\V4 Piece square tables</BaseOutputPath>
+    <BaseOutputPath>C:\Users\Moty\OneDrive\Desktop\Coding\Michael\Michael\bin\Versions\V5 endgame square tables, mop up and better time management</BaseOutputPath>
   </PropertyGroup>
 
 </Project>

@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using Michael.src.Helpers;
+using System.Numerics;
 
 namespace Michael.src.Bot.Eval
 {
@@ -113,6 +114,7 @@ namespace Michael.src.Bot.Eval
             int eval = 0;
             int phase = CalculatePhase();
 
+            int mopUp = MopUpScore();
             for (int i = 0; i < 12; i++)
             {
                 ulong bitboard = board.PiecesBitboards[i];
@@ -123,15 +125,41 @@ namespace Michael.src.Bot.Eval
                 {
                     int square = BitOperations.TrailingZeroCount(bitboard);
                     int mgScore = MgPieceSquareTables[pieceType][!isWhite ? square : 63 - square];
-                    int egScore = EgPieceSquareTables[pieceType][!isWhite ? square : 63 - square];
+                    int egScore = EgPieceSquareTables[pieceType][!isWhite ? square : 63 - square] + mopUp;
 
-                    int blended = (mgScore * phase + egScore * (24 - phase)) / 24;
+                    int blended = (mgScore * (24 - phase) + egScore * phase) / 24;
                     eval += isWhite ? blended : -blended;
 
                     bitboard &= bitboard - 1;
                 }
             }
             return eval;
+        }
+
+        //If we are completly winning, and in an endgame motivate to get our king as close as  possible
+        //to the opponent king
+        public static int MopUpScore()
+        {
+            //If we are ahead
+            if (Evaluator.CountMaterial() < 300)
+                return 0;
+
+            int frindlyKingSquare = BitOperations.TrailingZeroCount(board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.King, board.ColorToMove)]);
+            int enemyKingSquare = BitOperations.TrailingZeroCount(board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.King, board.ColorToMove ^ 1)]);
+
+            int friendlyKingSquareFile = BoardHelper.File(frindlyKingSquare);
+            int friendlyKingSquareRank = BoardHelper.Rank(frindlyKingSquare);
+
+            int enemyKingSquareFile = BoardHelper.File(enemyKingSquare);
+            int enemyKingSquareRank = BoardHelper.Rank(enemyKingSquare);
+
+            int CMD = Math.Min(
+                        Math.Min(Math.Abs(enemyKingSquareRank - 3) + Math.Abs(enemyKingSquareFile - 3), Math.Abs(enemyKingSquareRank - 3) + Math.Abs(enemyKingSquareFile - 4)),
+                        Math.Min(Math.Abs(enemyKingSquareRank - 4) + Math.Abs(enemyKingSquareFile - 3), Math.Abs(enemyKingSquareRank - 4) + Math.Abs(enemyKingSquareFile - 4))
+);
+            int MD = Math.Abs(friendlyKingSquareRank - enemyKingSquareRank) + Math.Abs(friendlyKingSquareFile - enemyKingSquareFile);
+
+            return 5 * CMD + 20 * (14 - MD);
         }
 
         private static readonly int[] PhaseValues = { 0, 1, 1, 2, 4, 0 }; // pawn, knight, bishop, rook, queen, king

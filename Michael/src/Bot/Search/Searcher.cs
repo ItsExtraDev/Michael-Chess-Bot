@@ -14,16 +14,12 @@ namespace Michael.src.Bot.Search
      * killer moves 
      * 
      * Evaluation: 
-     * eg piece table 
-     * mop up 
      * opening book 
      * piece mobility 
      * king safety 
      * pawn structure evaluation
      * 
      * More:
-     * bug in 3 move repetition. probably in undo move. even if winning sometimes evaluate draw.
-     * my best guess? calculate 3 fold repetiotn and automaticly detects a draw.
      * improve time managment
      * */
 
@@ -42,7 +38,6 @@ namespace Michael.src.Bot.Search
         public static Move GetBestMove(Board boardInstance, Clock matchClock)
         {
             board = boardInstance;
-
             // Initialize PV Table
             pvTable = new string[MaxDepth + 1][];
             for (int i = 0; i <= MaxDepth; i++)
@@ -76,6 +71,7 @@ namespace Michael.src.Bot.Search
             }
 
             stopwatch.Stop();
+
             return BestMove;
         }
 
@@ -97,7 +93,7 @@ namespace Michael.src.Bot.Search
                 }
             }
 
-            if (board.IsDraw()) 
+            if (board.IsDraw())
                 return 0;
 
             if (board.IsCheckmate()) 

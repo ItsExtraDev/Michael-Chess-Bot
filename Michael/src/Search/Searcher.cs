@@ -31,6 +31,7 @@
 
         private void StartIlliterateDeepeningSearch()
         {
+            bestMove = board.GetLegalMoves()[0];
         }
 
         public int Search(int depth)

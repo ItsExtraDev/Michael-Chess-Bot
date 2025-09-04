@@ -1,7 +1,5 @@
 ﻿using Michael;
-using Michael.src;
 using Michael.src.Helpers;
-using Michael.src.Search;
 
 /// <summary>
 /// UCI (Universal Chess Interface) is a protocol used by chess engines to communicate 
@@ -41,7 +39,7 @@ public class UCI
         {
             case "uci":
                 Respond("id name Michael Chess Engine");
-                Respond("id author Extra_");
+                Respond("id author ItsExtra");
                 Respond("uciok");
                 break;
 

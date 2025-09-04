@@ -1,54 +1,39 @@
-﻿namespace Michael.src.MoveGen
+﻿public class Move
 {
-    /// <summary>
-    /// Represents a chess move using a compact ushort encoding for efficiency.
-    /// Stores starting square, target square, and optional move flags.
-    /// </summary>
-    public class Move
+    private const ushort StartingSquareMask = 0b1111110000000000;
+    private const ushort TargetSquareMask = 0b0000001111110000;
+    private const ushort MoveFlagMask = 0b0000000000001111;
+    private const int TargetSquareShift = 4;
+    private const int StartingSquareShift = 10;
+
+    private readonly int RawMove;
+
+    public int StartingSquare => RawMove >> StartingSquareShift;
+    public int TargetSquare => (RawMove & TargetSquareMask) >> TargetSquareShift;
+    public int MoveFlag => RawMove & MoveFlagMask;
+
+    public Move(int startingSquare, int targetSquare)
     {
-        // Bit masks and shifts used to extract move components from the packed ushort value.
-        private const ushort StartingSquareMask = 0b1111110000000000;
-        private const ushort TargetSquareMask = 0b0000001111110000;
-        private const ushort MoveFlagMask = 0b0000000000001111;
-        private const int TargetSquareShift = 4;
-        private const int StartingSquareShift = 10;
-
-        // Packed move data stored as a single integer for quick operations.
-        private readonly int RawMove;
-
-        // Properties to decode and access individual move components.
-        public int StartingSquare => RawMove >> StartingSquareShift;
-        public int TargetSquare => (RawMove & TargetSquareMask) >> TargetSquareShift;
-        public int MoveFlag => RawMove & MoveFlagMask;
-
-        /// <summary>
-        /// Creates a normal move without any special flag.
-        /// </summary>
-        public Move(int startingSquare, int targetSquare)
-        {
-            RawMove = startingSquare << StartingSquareShift | targetSquare << TargetSquareShift;
-        }
-
-        /// <summary>
-        /// Creates a move with a specific move flag (promotion, castling, etc.).
-        /// </summary>
-        public Move(int startingSquare, int targetSquare, int moveFlag)
-        {
-            RawMove = startingSquare << StartingSquareShift | targetSquare << TargetSquareShift | moveFlag;
-        }
-
-        public bool IsCastle()
-            => MoveFlag >= 7;
-
-        public bool IsPromotion()
-            => MoveFlag >= 2 && MoveFlag <= 5;
-
-        /// <summary>
-        /// Returns a "null" move representing no action.
-        /// </summary>
-        public static Move NullMove() => new Move(0, 0);
+        RawMove = startingSquare << StartingSquareShift | targetSquare << TargetSquareShift;
     }
 
+    public Move(int startingSquare, int targetSquare, int moveFlag)
+    {
+        RawMove = startingSquare << StartingSquareShift | targetSquare << TargetSquareShift | moveFlag;
+    }
+
+    public bool IsCastle() => MoveFlag >= 7;
+    public bool IsPromotion() => MoveFlag >= 2 && MoveFlag <= 5;
+    public bool IsNull() => RawMove == 0;
+
+    public override bool Equals(object obj) => obj is Move other && RawMove == other.RawMove;
+    public bool Equals(Move other) => RawMove == other.RawMove;
+    public override int GetHashCode() => RawMove;
+
+    public override string ToString() => $"Move({StartingSquare}->{TargetSquare}, flag={MoveFlag})";
+
+    public static Move NullMove() => new Move(0, 0);
+}
     /// <summary>
     /// Defines constants for different move types (promotion, castling, en passant, etc.).
     /// </summary>
@@ -63,15 +48,13 @@
         public const int CastleShort = 0b0111;
         public const int CastleLong = 0b1000;
     }
-
     /// <summary>
     /// Contatins data about castling rights for both players and both sides.
     /// </summary>
     public static class CastlingRights
     {
         public const int WhiteShort = 0b0001; // White can castle short (kingside)
-        public const int WhiteLong = 0b0010;  // White can castle long (queenside)
+        public const int WhiteLong = 0b0010; // White can castle long (queenside)
         public const int BlackShort = 0b0100; // Black can castle short (kingside)
-        public const int BlackLong = 0b1000;  // Black can castle long (queenside)
+        public const int BlackLong = 0b1000; // Black can castle long (queenside)
     }
-}

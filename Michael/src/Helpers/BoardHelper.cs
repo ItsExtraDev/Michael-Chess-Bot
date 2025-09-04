@@ -24,6 +24,9 @@ namespace Michael.src.Helpers
         public static int File(int square)
             => square % 8;
 
+        public static bool IsOnBoard(int square)
+            => square >= 0 && square < 64;
+
         /// <summary>
         /// Prints a copy of the board to command promt.
         /// mainly used to help visualize and for debugging

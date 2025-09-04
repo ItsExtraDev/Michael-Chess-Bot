@@ -99,5 +99,105 @@ namespace Michael.src
             if (fenParts.Length > 5)
                 board.plyCount = int.Parse(fenParts[5]);
         }
+
+        public static string BoardToFen(Board board, bool alwaysIncludeEPSquare = true)
+        {
+            string fen = "";
+            for (int rank = 7; rank >= 0; rank--)
+            {
+                int numEmptyFiles = 0;
+                for (int file = 0; file < 8; file++)
+                {
+                    int i = rank * 8 + file;
+                    int piece = board.Squares[i];
+                    if (piece != 0)
+                    {
+                        if (numEmptyFiles != 0)
+                        {
+                            fen += numEmptyFiles;
+                            numEmptyFiles = 0;
+                        }
+                        bool isBlack = Piece.Color(piece) == Piece.Black;
+                        int pieceType = Piece.PieceType(piece);
+                        char pieceChar = ' ';
+                        switch (pieceType)
+                        {
+                            case Piece.Rook:
+                                pieceChar = 'R';
+                                break;
+                            case Piece.Knight:
+                                pieceChar = 'N';
+                                break;
+                            case Piece.Bishop:
+                                pieceChar = 'B';
+                                break;
+                            case Piece.Queen:
+                                pieceChar = 'Q';
+                                break;
+                            case Piece.King:
+                                pieceChar = 'K';
+                                break;
+                            case Piece.Pawn:
+                                pieceChar = 'P';
+                                break;
+                        }
+                        fen += (isBlack) ? pieceChar.ToString().ToLower() : pieceChar.ToString();
+                    }
+                    else
+                    {
+                        numEmptyFiles++;
+                    }
+
+                }
+                if (numEmptyFiles != 0)
+                {
+                    fen += numEmptyFiles;
+                }
+                if (rank != 0)
+                {
+                    fen += '/';
+                }
+            }
+
+            // Side to move
+            fen += ' ';
+            fen += (board.ColorToMove == Piece.White) ? 'w' : 'b';
+
+            // Castling
+            bool whiteKingside = (board.CasltingRight & 1) == 1;
+            bool whiteQueenside = (board.CasltingRight >> 1 & 1) == 1;
+            bool blackKingside = (board.CasltingRight >> 2 & 1) == 1;
+            bool blackQueenside = (board.CasltingRight >> 3 & 1) == 1;
+            fen += ' ';
+            fen += (whiteKingside) ? "K" : "";
+            fen += (whiteQueenside) ? "Q" : "";
+            fen += (blackKingside) ? "k" : "";
+            fen += (blackQueenside) ? "q" : "";
+            fen += ((board.CasltingRight) == 0) ? "-" : "";
+
+            // En-passant
+            fen += ' ';
+            int epSquare = board.EnPassantSquare;
+
+            bool isEnPassant = epSquare != 0;
+            if (isEnPassant && alwaysIncludeEPSquare)
+            {
+                fen += Notation.IndexToSquare(epSquare);
+            }
+            else
+            {
+                fen += '-';
+            }
+
+            // 50 move counter
+            fen += ' ';
+            fen += board.HalfmoveClock;
+
+            // Full-move count (should be one at start, and increase after each move by black)
+            fen += ' ';
+            fen += (board.plyCount / 2) + 1;
+
+            return fen;
+        }
     }
 }

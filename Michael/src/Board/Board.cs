@@ -57,8 +57,11 @@ namespace Michael.src
         public List<Move> moveHistory = new List<Move>();
         public List<int> HalfmoveClockHistory = new List<int>();
 
+        private Move[] MoveDir;
 
         public int EnPassantSquare = 0;
+
+        public bool IsWhiteToMove => ColorToMove == Piece.White;
 
         private static bool InCheck;
         private static bool hasCachedCheck = false;
@@ -134,14 +137,38 @@ namespace Michael.src
         /// <returns>An array of all the legal moves in the position</returns>
         public Move[] GetLegalMoves(bool GenerateCapturesOnly = false)
         {
-            legalMoves = MoveGenerator.GenerateLegalMoves(this, GenerateCapturesOnly);
+            MoveDir = new Move[MoveGenerator.MaxLegalMoves];
+            Span<Move> legalMovesSpan = MoveDir.AsSpan();
 
-            return legalMoves;
+            MoveGenerator.GenerateLegalMoves(this, ref legalMovesSpan, GenerateCapturesOnly);
+
+            return legalMovesSpan.ToArray();
         }
 
         public void MakeNullMove()
         {
+            ColorToMove ^= 1; // Switch the turn to the other player (0 for white, 1 for black)
+
+            // Update Zobrist hash
+            CurrentHash = Zobrist.ComputeHash(this);
+            if (!repetitionCounts.ContainsKey(CurrentHash))
+                repetitionCounts[CurrentHash] = 1;
+            else
+                repetitionCounts[CurrentHash]++;
+        }
+        public void UndoNullMove()
+        {
             ColorToMove ^= 1;
+
+            // Remove the hash of the current position (the one after the move)
+            if (repetitionCounts.ContainsKey(CurrentHash))
+            {
+                repetitionCounts[CurrentHash]--;
+                if (repetitionCounts[CurrentHash] == 0)
+                    repetitionCounts.Remove(CurrentHash);
+            }
+
+            CurrentHash = Zobrist.ComputeHash(this);
         }
 
         /// <summary>
@@ -150,160 +177,177 @@ namespace Michael.src
         /// <param name="move"></param>
         public void MakeMove(Move move)
         {
-            int movingPiece = Squares[move.StartingSquare];
-            int movingPieceType = Piece.PieceType(movingPiece);
-
-            int movingBitboardIndex = BitboardHelper.GetBitboardIndex(movingPieceType, ColorToMove);
-            ref ulong movingBitboard = ref PiecesBitboards[movingBitboardIndex];
-            int CapturedPiece = Squares[move.TargetSquare];
-            Squares[move.StartingSquare] = Piece.None; // Clear the starting square
-            Squares[move.TargetSquare] = movingPiece; // Place the piece on the target square
-            BitboardHelper.MovePiece(ref movingBitboard, move.StartingSquare, move.TargetSquare); // Update the bitboard
-            BitboardHelper.MovePiece(ref ColoredBitboards[ColorToMove], move.StartingSquare, move.TargetSquare); // Update the colored bitboard
-            BitboardHelper.MovePiece(ref ColoredBitboards[2], move.StartingSquare, move.TargetSquare); // Remove the starting square from the empty squares bitboard
-
-            //Update castling rights
-            if (movingPieceType == Piece.King)
+            try
             {
-                int whiteCastlingMask = 1 << 0 | 1 << 1; // White castling rights mask
-                int blackCastlingMask = 1 << 2 | 1 << 3; // Black castling rights mask
-                int mask = ColorToMove == Piece.White ? whiteCastlingMask : blackCastlingMask; // Determine the castling rights mask based on color
-                CasltingRight &= ~mask; // Remove the castling rights for the current player
-            }
-            else if (movingPieceType == Piece.Rook)
-            {
-                if (move.StartingSquare == 0) // A1 or H1 for white
-                {
-                    CasltingRight &= ~(1 << 1); // Remove white kingside castling right
-                }
-                else if (move.StartingSquare == 7)
-                {
-                    CasltingRight &= ~(1 << 0); // Remove white queenside castling right
-                }
-                else if (move.StartingSquare == 56) // A8 or H8 for black
-                {
-                    CasltingRight &= ~(1 << 3); // Remove black kingside castling right
-                }
-                else if (move.StartingSquare == 63)
-                {
-                    CasltingRight &= ~(1 << 2); // Remove black queenside castling right
-                }
-            }
+                int movingPiece = Squares[move.StartingSquare];
+                int movingPieceType = Piece.PieceType(movingPiece);
 
-            if (move.MoveFlag == MoveFlag.EnPassant)
-            {
-                // Handle en passant logic
-                int enPassantSquare = move.TargetSquare + (ColorToMove == Piece.White ? -8 : 8); // Calculate the square that the pawn would have been on if it had not been captured
+                int movingBitboardIndex = BitboardHelper.GetBitboardIndex(movingPieceType, ColorToMove);
+                ref ulong movingBitboard = ref PiecesBitboards[movingBitboardIndex];
+                int CapturedPiece = Squares[move.TargetSquare];
+                Squares[move.StartingSquare] = Piece.None; // Clear the starting square
+                Squares[move.TargetSquare] = movingPiece; // Place the piece on the target square
+                BitboardHelper.MovePiece(ref movingBitboard, move.StartingSquare, move.TargetSquare); // Update the bitboard
+                BitboardHelper.MovePiece(ref ColoredBitboards[ColorToMove], move.StartingSquare, move.TargetSquare); // Update the colored bitboard
+                BitboardHelper.MovePiece(ref ColoredBitboards[2], move.StartingSquare, move.TargetSquare); // Remove the starting square from the empty squares bitboard
 
-                Squares[enPassantSquare] = Piece.None; // Remove the captured pawn from the board
-                int capturedPawnType = Piece.CreatePiece(Piece.Pawn, ColorToMove ^ 1); // Create the captured pawn piece
-                int capturedBitboardIndex = BitboardHelper.GetBitboardIndex(Piece.Pawn, ColorToMove ^ 1);
-                ref ulong capturedBitboard = ref PiecesBitboards[capturedBitboardIndex];
-                BitboardHelper.ToggleBit(ref capturedBitboard, enPassantSquare); // Remove the captured pawn from its bitboard
-                BitboardHelper.ToggleBit(ref ColoredBitboards[ColorToMove ^ 1], enPassantSquare); // Remove from the colored bitboard
-                BitboardHelper.ToggleBit(ref ColoredBitboards[2], enPassantSquare); // Remove from the colored bitboard
-            }
-            else if (CapturedPiece != Piece.None)
-            {
-                // If a piece was captured, remove it from the board and its bitboard
-                int capturedPieceType = Piece.PieceType(CapturedPiece);                      //The color of the captured piece is always the opposite color of the moving player.
-                int capturedBitboardIndex = BitboardHelper.GetBitboardIndex(capturedPieceType, ColorToMove ^ 1);
-                ref ulong capturedBitboard = ref PiecesBitboards[capturedBitboardIndex];
-                BitboardHelper.ToggleBit(ref capturedBitboard, move.TargetSquare); // Remove the captured piece from its bitboard
-                BitboardHelper.ToggleBit(ref ColoredBitboards[ColorToMove ^ 1], move.TargetSquare); // Remove from the colored bitboard
-                BitboardHelper.ToggleBit(ref ColoredBitboards[2], move.TargetSquare); // Remove from the colored bitboard
-
-                //Update castling rights if the captured piece was a rook
-                if (capturedPieceType == Piece.Rook)
+                //Update castling rights
+                if (movingPieceType == Piece.King)
                 {
-                    if (move.TargetSquare == 0) // A1 or H1 for white
+                    int whiteCastlingMask = 1 << 0 | 1 << 1; // White castling rights mask
+                    int blackCastlingMask = 1 << 2 | 1 << 3; // Black castling rights mask
+                    int mask = ColorToMove == Piece.White ? whiteCastlingMask : blackCastlingMask; // Determine the castling rights mask based on color
+                    CasltingRight &= ~mask; // Remove the castling rights for the current player
+                }
+                else if (movingPieceType == Piece.Rook)
+                {
+                    if (move.StartingSquare == 0) // A1 or H1 for white
                     {
                         CasltingRight &= ~(1 << 1); // Remove white kingside castling right
-
                     }
-                    else if (move.TargetSquare == 7)
+                    else if (move.StartingSquare == 7)
                     {
                         CasltingRight &= ~(1 << 0); // Remove white queenside castling right
                     }
-                    else if (move.TargetSquare == 56) // A8 or H8 for black
+                    else if (move.StartingSquare == 56) // A8 or H8 for black
                     {
                         CasltingRight &= ~(1 << 3); // Remove black kingside castling right
                     }
-                    else if (move.TargetSquare == 63)
+                    else if (move.StartingSquare == 63)
                     {
                         CasltingRight &= ~(1 << 2); // Remove black queenside castling right
                     }
                 }
-            }
-            if (move.IsPromotion())
-            {
-                // Handle promotion logic
-                int promotionPieceType = move.MoveFlag; // The piece type to promote to
-                int promotionPiece = Piece.CreatePiece(promotionPieceType, ColorToMove);
-                int promotionBitboardIndex = BitboardHelper.GetBitboardIndex(promotionPieceType, ColorToMove);
-                ref ulong promotionBitboard = ref PiecesBitboards[promotionBitboardIndex];
-                BitboardHelper.ToggleBit(ref promotionBitboard, move.TargetSquare); // Add the promoted piece to its bitboard
-                if (BitboardHelper.IsBitSet(movingBitboard, move.TargetSquare))
-                    BitboardHelper.ToggleBit(ref movingBitboard, move.TargetSquare); // remove the moving pawn from its bitboard
-                Squares[move.TargetSquare] = promotionPiece; // Place the promoted piece on the target square
-            }
-            else if (move.IsCastle())
-            {
-                // Handle castling logic
-                int rookStartSquare = move.MoveFlag == MoveFlag.CastleShort ? move.TargetSquare + 1 : move.TargetSquare - 2; // Determine the rook's starting square based on castling type
-                int rookTargetSquare = move.TargetSquare + (move.MoveFlag == MoveFlag.CastleShort ? -1 : 1); // Determine the rook's target square
-                int rookPiece = Squares[rookStartSquare]; // Get the rook piece
-                Squares[rookStartSquare] = Piece.None; // Clear the rook's starting square
-                Squares[rookTargetSquare] = rookPiece; // Place the rook on its target square
-                int rookBitboardIndex = BitboardHelper.GetBitboardIndex(Piece.Rook, ColorToMove);
-                ref ulong rookBitboard = ref PiecesBitboards[rookBitboardIndex];
-                BitboardHelper.MovePiece(ref rookBitboard, rookStartSquare, rookTargetSquare); // Update the rook's bitboard
-                BitboardHelper.MovePiece(ref ColoredBitboards[ColorToMove], rookStartSquare, rookTargetSquare); // Update the colored bitboard
-                BitboardHelper.MovePiece(ref ColoredBitboards[2], rookStartSquare, rookTargetSquare); // Update the colored bitboard
-                int whiteCastlingMask = 1 << 0 | 1 << 1; // White castling rights mask
-                int blackCastlingMask = 1 << 2 | 1 << 3; // Black castling rights mask
-                int mask = ColorToMove == Piece.White ? whiteCastlingMask : blackCastlingMask; // Determine the castling rights mask based on color
-                CasltingRight &= ~mask; // Remove the castling rights for the current player
 
-            }
-            if (move.MoveFlag == MoveFlag.DoublePawnPush)
-            {
-                // Handle double pawn push logic
-                EnPassantSquare = move.TargetSquare + (ColorToMove == Piece.White ? -8 : 8); // Set the en passant square
-            }
-            else
-            {
-                EnPassantSquare = 0; // Reset en passant square if not a double pawn push
-            }
-            // Update halfmove clock
-            if (movingPieceType == Piece.Pawn || CapturedPiece != Piece.None)
-            {
-                HalfmoveClock = 0; // Reset on pawn move or capture
-            }
-            else
-            {
-                HalfmoveClock++; // Otherwise increment
-            }
-            //en passant logic, and caslting logic
-            GameStateHistory.Add(CurrentGameState); // Add the current game state to history
-            CurrentGameState = GameState.MakeGameState(CapturedPiece, movingPiece, EnPassantSquare, CasltingRight); // Update the game state with the captured piece and moving piece
-            moveHistory.Add(move); // Add the move to the history
-            ColorToMove ^= 1; // Switch the turn to the other player (0 for white, 1 for black)
-            HalfmoveClockHistory.Add(HalfmoveClock); plyCount++; // Increment the ply count for the current turn
-            hasCachedCheck = false;
+                if (move.MoveFlag == MoveFlag.EnPassant)
+                {
+                    // Handle en passant logic
+                    int enPassantSquare = move.TargetSquare + (ColorToMove == Piece.White ? -8 : 8); // Calculate the square that the pawn would have been on if it had not been captured
 
-            // Update Zobrist hash
-            CurrentHash = Zobrist.ComputeHash(this);
-            if (!repetitionCounts.ContainsKey(CurrentHash))
-                repetitionCounts[CurrentHash] = 1;
-            else
-                repetitionCounts[CurrentHash]++;
+                    Squares[enPassantSquare] = Piece.None; // Remove the captured pawn from the board
+                    int capturedPawnType = Piece.CreatePiece(Piece.Pawn, ColorToMove ^ 1); // Create the captured pawn piece
+                    int capturedBitboardIndex = BitboardHelper.GetBitboardIndex(Piece.Pawn, ColorToMove ^ 1);
+                    ref ulong capturedBitboard = ref PiecesBitboards[capturedBitboardIndex];
+                    BitboardHelper.ToggleBit(ref capturedBitboard, enPassantSquare); // Remove the captured pawn from its bitboard
+                    BitboardHelper.ToggleBit(ref ColoredBitboards[ColorToMove ^ 1], enPassantSquare); // Remove from the colored bitboard
+                    BitboardHelper.ToggleBit(ref ColoredBitboards[2], enPassantSquare); // Remove from the colored bitboard
+                }
+                if (CapturedPiece != Piece.None)
+                {
+                    // If a piece was captured, remove it from the board and its bitboard
+                    int capturedPieceType = Piece.PieceType(CapturedPiece);                      //The color of the captured piece is always the opposite color of the moving player.
+                    int capturedBitboardIndex = BitboardHelper.GetBitboardIndex(capturedPieceType, ColorToMove ^ 1);
+                    ref ulong capturedBitboard = ref PiecesBitboards[capturedBitboardIndex];
+                    BitboardHelper.ToggleBit(ref capturedBitboard, move.TargetSquare); // Remove the captured piece from its bitboard
+                    BitboardHelper.ToggleBit(ref ColoredBitboards[ColorToMove ^ 1], move.TargetSquare); // Remove from the colored bitboard
+                    BitboardHelper.ToggleBit(ref ColoredBitboards[2], move.TargetSquare); // Remove from the colored bitboard
+
+                    //Update castling rights if the captured piece was a rook
+                    if (capturedPieceType == Piece.Rook)
+                    {
+                        if (move.TargetSquare == 0) // A1 or H1 for white
+                        {
+                            CasltingRight &= ~(1 << 1); // Remove white kingside castling right
+
+                        }
+                        else if (move.TargetSquare == 7)
+                        {
+                            CasltingRight &= ~(1 << 0); // Remove white queenside castling right
+                        }
+                        else if (move.TargetSquare == 56) // A8 or H8 for black
+                        {
+                            CasltingRight &= ~(1 << 3); // Remove black kingside castling right
+                        }
+                        else if (move.TargetSquare == 63)
+                        {
+                            CasltingRight &= ~(1 << 2); // Remove black queenside castling right
+                        }
+                    }
+                }
+                if (move.IsPromotion())
+                {
+                    // Handle promotion logic
+                    int promotionPieceType = move.MoveFlag; // The piece type to promote to
+                    int promotionPiece = Piece.CreatePiece(promotionPieceType, ColorToMove);
+                    int promotionBitboardIndex = BitboardHelper.GetBitboardIndex(promotionPieceType, ColorToMove);
+                    ref ulong promotionBitboard = ref PiecesBitboards[promotionBitboardIndex];
+                    BitboardHelper.ToggleBit(ref promotionBitboard, move.TargetSquare); // Add the promoted piece to its bitboard
+                    if (BitboardHelper.IsBitSet(movingBitboard, move.TargetSquare))
+                        BitboardHelper.ToggleBit(ref movingBitboard, move.TargetSquare); // remove the moving pawn from its bitboard
+                    Squares[move.TargetSquare] = promotionPiece; // Place the promoted piece on the target square
+                }
+                else if (move.IsCastle())
+                {
+                    // Handle castling logic
+                    int rookStartSquare = move.MoveFlag == MoveFlag.CastleShort ? move.TargetSquare + 1 : move.TargetSquare - 2; // Determine the rook's starting square based on castling type
+                    int rookTargetSquare = move.TargetSquare + (move.MoveFlag == MoveFlag.CastleShort ? -1 : 1); // Determine the rook's target square
+                    int rookPiece = Squares[rookStartSquare]; // Get the rook piece
+                    Squares[rookStartSquare] = Piece.None; // Clear the rook's starting square
+                    Squares[rookTargetSquare] = rookPiece; // Place the rook on its target square
+                    int rookBitboardIndex = BitboardHelper.GetBitboardIndex(Piece.Rook, ColorToMove);
+                    ref ulong rookBitboard = ref PiecesBitboards[rookBitboardIndex];
+                    BitboardHelper.MovePiece(ref rookBitboard, rookStartSquare, rookTargetSquare); // Update the rook's bitboard
+                    BitboardHelper.MovePiece(ref ColoredBitboards[ColorToMove], rookStartSquare, rookTargetSquare); // Update the colored bitboard
+                    BitboardHelper.MovePiece(ref ColoredBitboards[2], rookStartSquare, rookTargetSquare); // Update the colored bitboard
+                    int whiteCastlingMask = 1 << 0 | 1 << 1; // White castling rights mask
+                    int blackCastlingMask = 1 << 2 | 1 << 3; // Black castling rights mask
+                    int mask = ColorToMove == Piece.White ? whiteCastlingMask : blackCastlingMask; // Determine the castling rights mask based on color
+                    CasltingRight &= ~mask; // Remove the castling rights for the current player
+
+                }
+                if (move.MoveFlag == MoveFlag.DoublePawnPush)
+                {
+                    // Handle double pawn push logic
+                    EnPassantSquare = move.TargetSquare + (ColorToMove == Piece.White ? -8 : 8); // Set the en passant square
+                }
+                else
+                {
+                    EnPassantSquare = 0; // Reset en passant square if not a double pawn push
+                }
+                // Update halfmove clock
+                if (movingPieceType == Piece.Pawn || CapturedPiece != Piece.None)
+                {
+                    HalfmoveClock = 0; // Reset on pawn move or capture
+                }
+                else
+                {
+                    HalfmoveClock++; // Otherwise increment
+                }
+                GameStateHistory.Add(CurrentGameState); // Add the current game state to history
+                CurrentGameState = GameState.MakeGameState(CapturedPiece, movingPiece, EnPassantSquare, CasltingRight); // Update the game state with the captured piece and moving piece
+                moveHistory.Add(move); // Add the move to the history
+                ColorToMove ^= 1; // Switch the turn to the other player (0 for white, 1 for black)
+                HalfmoveClockHistory.Add(HalfmoveClock); plyCount++; // Increment the ply count for the current turn
+                hasCachedCheck = false;
+
+                // Update Zobrist hash
+                CurrentHash = Zobrist.ComputeHash(this);
+                if (!repetitionCounts.ContainsKey(CurrentHash))
+                    repetitionCounts[CurrentHash] = 1;
+                else
+                    repetitionCounts[CurrentHash]++;
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine($"Falied making move {move.StartingSquare} -> {move.TargetSquare}", e);
+                BoardHelper.PrintBoard(this);
+
+                throw new Exception("FAIL F");
+            }
 
         }
 
         public void UndoMove(Move move)
         {
-            int movingPiece = GameState.MovingPiece(CurrentGameState);
+            // Remove the hash of the current position (the one after the move)
+            if (repetitionCounts.ContainsKey(CurrentHash))
+            {
+                repetitionCounts[CurrentHash]--;
+                if (repetitionCounts[CurrentHash] == 0)
+                    repetitionCounts.Remove(CurrentHash);
+            }
+
+                int movingPiece = GameState.MovingPiece(CurrentGameState);
             int movingPieceType = Piece.PieceType(movingPiece);
             int movingBitboardIndex = BitboardHelper.GetBitboardIndex(movingPieceType, ColorToMove ^ 1);
             ref ulong movingBitboard = ref PiecesBitboards[movingBitboardIndex];
@@ -327,7 +371,7 @@ namespace Michael.src
                 BitboardHelper.ToggleBit(ref ColoredBitboards[ColorToMove], enPassantSquare); // Remove from the colored bitboard
                 BitboardHelper.ToggleBit(ref ColoredBitboards[2], enPassantSquare); // Remove from the colored bitboard
             }
-            else if (capturedPiece != Piece.None)
+            if (capturedPiece != Piece.None)
             {
                 // If a piece was captured, restore it to the board and its bitboard
                 int capturedPieceType = Piece.PieceType(capturedPiece);
@@ -376,13 +420,7 @@ namespace Michael.src
             plyCount--; // Decrement the ply count for the current turn
             hasCachedCheck = false;
 
-            ulong previousHash = CurrentHash;
-            if (repetitionCounts.ContainsKey(previousHash))
-            {
-                repetitionCounts[previousHash]--;
-                if (repetitionCounts[previousHash] == 0)
-                    repetitionCounts.Remove(previousHash);
-            }
+            // Now recompute hash for the restored position
             CurrentHash = Zobrist.ComputeHash(this);
         }
     }

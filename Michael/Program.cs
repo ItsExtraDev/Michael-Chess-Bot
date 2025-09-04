@@ -1,16 +1,15 @@
-﻿using Michael.src;
-using Michael.src.Helpers;
-using Michael.src.MoveGen;
-using System.Numerics;
+﻿using Michael.src.MoveGen;
 
 //Inits
-Engine.Init();
+MatchManager.Init();
 PrecomputeMoveData.Init();
 Magic.Init();
+
+UCI uci = new();
 
 //Always listen UCI for command from the GUI, and respond accordingly.
 while (true)
 {
-    string[] commandTokens = Console.ReadLine().Split(' ');
-    UCI.ProcessCommand(commandTokens);
+    string message = Console.ReadLine();
+    uci.ProcessCommand(message);
 }

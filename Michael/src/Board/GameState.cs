@@ -8,7 +8,6 @@ namespace Michael.src
         private static int CapturedPieceMask = 0b000000111111000000;
         private static int MovingPieceMask = 0b000000000000111111;
         private static int EnPassantSquareMask = 0b111111000000000000;
-        private static int CastlingMask    = 0b1111000000000000000000; // optional
 
         private static int CapturedPieceShift = 6;
         private static int EnPassantShift = 12;

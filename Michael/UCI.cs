@@ -1,6 +1,7 @@
-﻿using Michael.src;
-using Michael.src.Bot;
+﻿using Michael;
+using Michael.src;
 using Michael.src.Helpers;
+using Michael.src.Search;
 
 /// <summary>
 /// UCI (Universal Chess Interface) is a protocol used by chess engines to communicate 
@@ -8,32 +9,51 @@ using Michael.src.Helpers;
 /// board setup, search commands, and move generation.
 /// More information: https://www.chessprogramming.org/UCI
 /// </summary>
-public static class UCI
+public class UCI
 {
+    //Write all commands, responses and search results to a file.
+    //Used for debugging, by defualt set to false
+    private const bool writeToFile = true;
+
+    readonly Bot player;
+    readonly LogWriter writer;
+
+    public UCI()
+    {
+        player = new Bot();
+        writer = new LogWriter(FileType.UCI, true);
+        player.OnMoveChosen += OnMoveChosen;
+    }
+
     /// <summary>
     /// Processes a UCI command received from the GUI and responds accordingly.
     /// Also includes debug commands for testing purposes.
     /// </summary>
     /// <param name="tokens">The split UCI command tokens.</param>
-    public static void ProcessCommand(string[] tokens)
+    public void ProcessCommand(string message)
     {
+        writer.WriteToFile("");
+        writer.WriteToFile($"Recived command: {message}");
+
+        string[] tokens = message.Split(' ');
+
         switch (tokens[0])
         {
             case "uci":
-                Console.WriteLine("id name Michael Chess Engine");
-                Console.WriteLine("id author Extra_");
-                Console.WriteLine("uciok");
+                Respond("id name Michael Chess Engine");
+                Respond("id author Extra_");
+                Respond("uciok");
                 break;
 
             case "isready":
-                Console.WriteLine("readyok");
+                Respond("readyok");
                 break;
 
             case "ucinewgame":
                 break;
 
             case "position":
-                Engine.LoadBoardFromPositionCommand(tokens);
+                MatchManager.LoadBoardFromPositionCommand(tokens);
                 break;
 
             case "go":
@@ -43,16 +63,18 @@ public static class UCI
                     int depth;
                     if (int.TryParse(tokens[2], out depth))
                     {
-                        Notation.PrintPerftTest(Engine.board, depth);
+                        Notation.PrintPerftTest(MatchManager.board, depth);
                         return; // Exit after perft test
                     }
                 }
-                
-                string bestMoveString = Notation.MoveToAlgebraic(Engine.GetBestMove(SetUpClock(tokens)));
-                Console.WriteLine($"bestmove {bestMoveString}");
+                ProcessGoCommand();
                 break;
 
             case "stop":
+                if (player.IsThinking)
+                {
+                    player.EndSearch();
+                }
                 break;
 
             case "quit":
@@ -61,31 +83,36 @@ public static class UCI
 
             // Debug commands
             case "d":
-                BoardHelper.PrintBoard(Engine.board);
+                BoardHelper.PrintBoard(MatchManager.board);
                 break;
 
             default:
-                Console.WriteLine("Unknown command: " + string.Join(' ', tokens));
+                Respond($"Unknown command: {message}");
                 break;
         }
     }
 
-    public static Clock SetUpClock(string[] tokens)
+    private void Respond(string message)
     {
-        int color = Engine.board.ColorToMove;
-        int timeLeftInMs = int.Parse(tokens[color == Piece.White ? 2 : 4]);
-        int movesToGo = 0;
-        int incrament = 0;
+        Console.WriteLine(message);
+        writer.WriteToFile("Response sent: " + message);
+    }
 
-        for (int i = 0; i < tokens.Length; i++)
+    private void ProcessGoCommand()
+    {
+        if (player.UseMaxTimePerMove)
         {
-            if ((tokens[i] == "winc" && color == Piece.White) ||
-                (tokens[i] == "binc" && color == Piece.Black))
-                incrament = int.Parse(tokens[i + 1]);
-
-            else if (tokens[i] == "movestogo")
-                movesToGo = int.Parse(tokens[i + 1]);
+            player.StartThinkingTimed(player.MaxTimePerMoveInMS);
         }
-        return new Clock(timeLeftInMs, movesToGo, incrament);
+        //TODO add time per move calculation here
+        else
+        {
+            player.StartThinkingTimed(player.MaxTimePerMoveInMS);
+        }
+    }
+
+    public void OnMoveChosen(string move)
+    {
+        Respond("bestmove " + move);
     }
 }

@@ -51,12 +51,18 @@ namespace Michael.src.MoveGen
             return IsInCheck;
         }
 
-        public static Move[] GenerateLegalMoves(Board boardInstance, bool generateCapturesOnly)
+        public static void GenerateLegalMoves(Board boardInstance, ref Span<Move> legalMoves, bool generateCapturesOnly)
         {
             board = boardInstance; //Set the board to the current board instance.
             Init(); //Initialize all the necessary variables for move generation.
-            movementMask = generateCapturesOnly ? board.ColoredBitboards[board.ColorToMove ^ 1] : ulong.MaxValue;
-            Move[] legalMoves = new Move[MaxLegalMoves]; // Create an array to hold the legal moves.
+
+            // In captures-only (qsearch):
+            // - If NOT in check: allow only true captures (opp pieces + EP square)
+            // - If IN check: allow all legal evasions (captures + interpositions), so don't restrict by target occupancy
+            ulong epMask = board.EnPassantSquare != 0 ? (1ul << board.EnPassantSquare) : 0ul;
+            ulong captureTargets = board.ColoredBitboards[board.ColorToMove ^ 1] | epMask;
+
+            movementMask = generateCapturesOnly ? captureTargets : ulong.MaxValue;
 
             GenerateLegalKingMoves(ref legalMoves); // Generate all the legal king moves and add them to the legal moves array.
             if (!IsInDoubleCheck)
@@ -68,14 +74,14 @@ namespace Michael.src.MoveGen
 
             //Convert the array to a span and slice to the amount of legal moves in the position and return as an array.
             //This is done to no return 218 moves when there are less than that in the position.
-            return legalMoves.AsSpan().Slice(0, CurrentMoveIndex).ToArray(); 
+            legalMoves = legalMoves.Slice(0, CurrentMoveIndex).ToArray(); 
         }
 
         /// <summary>
         /// Generates all the legal moves for a pawn piece and return to the given legalMoves array.
         /// </summary>
         /// <param name="legalMoves">the array to return the legal pawn moves</param>
-        private static void GenerateLegalPawnMoves(ref Move[] legalMoves)
+        private static void GenerateLegalPawnMoves(ref Span<Move> legalMoves)
         {
             int BitboardIndex = BitboardHelper.GetBitboardIndex(Piece.Pawn, board.ColorToMove);
             ulong pawns = board.PiecesBitboards[BitboardIndex];
@@ -155,7 +161,7 @@ namespace Michael.src.MoveGen
                     }
                 }
                 else if (board.EnPassantSquare == targetSquare)
-                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
+                     legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
                 else
                     legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
@@ -175,7 +181,7 @@ namespace Michael.src.MoveGen
                     }
                 }
                 else if (board.EnPassantSquare == targetSquare)
-                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
+                   legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
                 else
                     legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
@@ -186,7 +192,7 @@ namespace Michael.src.MoveGen
         /// Generates all the legal moves for a knight piece and return to the given legalMoves array.
         /// </summary>
         /// <param name="legalMoves">the array to return the legal knight moves</param>
-        public static void GenerateLegalKnightMoves(ref Move[] legalMoves)
+        public static void GenerateLegalKnightMoves(ref Span<Move> legalMoves)
         {
             ulong knightBitboard = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Knight, board.ColorToMove)] & ~DiagonalPinMask & ~OrthogonalPinMask; ;
             while (knightBitboard != 0)
@@ -206,7 +212,7 @@ namespace Michael.src.MoveGen
         /// Generates all the legal moves for a king piece and return to the given legalMoves array.
         /// </summary>
         /// <param name="legalMoves">the array to return the legal king moves</param>
-        public static void GenerateLegalKingMoves(ref Move[] legalMoves)
+        public static void GenerateLegalKingMoves(ref Span<Move> legalMoves)
         {
             
             ulong kingAttacks = KingMoves[friendlyKingSquare] & enemyBitboardAndEmptySquares & ~enemyAttacks; // Get the precomputed moves for the king from that square.
@@ -255,7 +261,7 @@ namespace Michael.src.MoveGen
         /// Generates all the legal moves for the sliding pieces (rooks, bishops, and queens) and returns to the given legalMoves array.
         /// </summary>
         /// <param name="legalMoves">the array to return the legal moves to</param>
-        private static void GenerateLegalSlidingMoves(ref Move[] legalMoves)
+        private static void GenerateLegalSlidingMoves(ref Span<Move> legalMoves)
         {
             ulong orthogonalPieces = (board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Rook, board.ColorToMove)]
                                     | board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove)]) & ~DiagonalPinMask;
@@ -321,8 +327,6 @@ namespace Michael.src.MoveGen
             IsInCheck = false;
             IsInDoubleCheck = false;
             ulong kingBB = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.King, board.ColorToMove)];
-            if (kingBB == 0)
-                throw new Exception("King bitboard is empty – invalid board state");
             friendlyKingSquare = BitOperations.TrailingZeroCount(kingBB);
             checkRayMask = 0;
             DiagonalPinMask = 0;

@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using Michael.src.MoveGen;
+using System.Numerics;
 
 namespace Michael.src.Helpers
 {
@@ -17,6 +18,17 @@ namespace Michael.src.Helpers
         public const ulong Rank6 = 0x0000FF0000000000;
         public const ulong Rank7 = 0x00FF000000000000;
         public const ulong Rank8 = 0xFF00000000000000;
+
+        //File Masks 
+        public const ulong FileA = 0x0101010101010101;
+        public const ulong FileB = 0x0202020202020202;
+        public const ulong FileC = 0x0404040404040404;
+        public const ulong FileD = 0x0808080808080808;
+        public const ulong FileE = 0x1010101010101010;
+        public const ulong FileF = 0x2020202020202020;
+        public const ulong FileG = 0x4040404040404040;
+        public const ulong FileH = 0x8080808080808080;
+
 
 
         /// <summary>
@@ -118,5 +130,75 @@ namespace Michael.src.Helpers
                 Console.WriteLine();
             }
         }
+
+        public static ulong GetFileMask(int file) 
+            => ShiftBitboard(FileA, file);
+
+        public static ulong GetAdjecentFilesBitboard(int file)
+        {
+            ulong mask = 0;
+            if (file > 0) mask |= GetFileMask(file - 1);
+            if (file < 7) mask |= GetFileMask(file + 1);
+            return mask;
+        }
+
+
+        public static ulong GetPassedPawnMask(int square, int color)
+        {
+            int file = BoardHelper.File(square);
+            int rank = BoardHelper.Rank(square);
+
+            ulong filesMask = GetFileMask(file) | GetAdjecentFilesBitboard(file);
+            ulong forwardMask;
+
+            if (color == 0) // White
+            {
+                forwardMask = ~((1UL << ((rank + 1) * 8)) - 1); // Clear all ranks ≤ current
+
+                if (rank == 7)
+                    forwardMask = ulong.MinValue;
+            }
+            else // Black
+            {
+                forwardMask = (1UL << (rank * 8)) - 1; // Keep ranks below current
+
+                if (rank == 0)
+                    forwardMask = ulong.MinValue;
+            }
+
+            return filesMask & forwardMask;
+        }
+
+        /// <summary>
+        /// Returns a bitboard mask of all squares behind the given square (on the same file),
+        /// relative to the pawn's color.
+        /// For white: squares below the current rank.
+        /// For black: squares above the current rank.
+        /// </summary>
+        /// <param name="square">The square index (0-63).</param>
+        /// <param name="color">0 for white, 1 for black.</param>
+        /// <returns>A bitboard with backward squares set to 1.</returns>
+        public static ulong GetBackwardMask(int square, int color)
+        {
+            int file = BoardHelper.File(square);
+            int rank = BoardHelper.Rank(square);
+
+            ulong fileMask = GetFileMask(file);
+
+            if (color == 0) // White
+            {
+                // All ranks below current rank
+                ulong lowerRanksMask = (1UL << (rank * 8)) - 1;
+                return fileMask & lowerRanksMask;
+            }
+            else // Black
+            {
+                // All ranks above current rank
+                ulong upperRanksMask = ~((1UL << ((rank + 1) * 8)) - 1);
+                return fileMask & upperRanksMask;
+            }
+        }
+
+
     }
 }

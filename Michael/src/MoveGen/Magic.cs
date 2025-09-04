@@ -124,7 +124,7 @@ namespace Michael.src.MoveGen
                     {
                         break;
                     }
-                    if ((IsSquareLastOnDirection(currentSquare, offset) && !isFromMoveGen) || IsSquareLastOnDirection(currentSquare - offset, offset) && isFromMoveGen)
+                    if (isFromMoveGen && IsSquareLastOnDirection(currentSquare - offset, offset) || !isFromMoveGen && (IsSquareLastOnDirection(currentSquare, offset)))
                         break;
 
                     attackMask |= 1ul << currentSquare;
@@ -213,8 +213,8 @@ namespace Michael.src.MoveGen
                     currentSquare += offset;
                     if (!IsSquareOnBoard(currentSquare)) break;
                     if (!AreSquaresInDiagonal(square, currentSquare)) break;
-                    if ((IsSquareLastOnDirection(currentSquare, offset) && !isFromMoveGen) ||
-                        (IsSquareLastOnDirection(currentSquare - offset, offset) && isFromMoveGen))
+                    if (isFromMoveGen && (IsSquareLastOnDirection(currentSquare - offset, offset)) ||
+                        (!isFromMoveGen && IsSquareLastOnDirection(currentSquare, offset)))
                         break;
 
                     attackMask |= 1ul << currentSquare;

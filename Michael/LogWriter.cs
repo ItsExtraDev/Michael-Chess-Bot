@@ -8,7 +8,7 @@
         public LogWriter(FileType fileType, bool writeToFiles)
         {
             this.fileType = fileType;
-            this.writeToFiles = writeToFiles;
+            this.writeToFiles = false;
         }
 
         public void WriteToFile(string text)

@@ -37,12 +37,21 @@ namespace Michael
 
         private void StartNewSearch(int timeToThinkMS)
         {
-            //when we have exceeded the maximum time to think, break out of the search loop using the CancellationTokenSource
             cancelSearchTimer = new CancellationTokenSource();
+            var localCancel = cancelSearchTimer;
 
-            Task.Delay(timeToThinkMS, cancelSearchTimer.Token).ContinueWith((t) => EndSearch());
+            Task.Delay(timeToThinkMS, localCancel.Token).ContinueWith((t) =>
+            {
+                // Only end if we’re still using this token (not a newer search)
+                if (!t.IsCanceled && localCancel == cancelSearchTimer && IsThinking)
+                {
+                    EndSearch();
+                }
+            });
+
             searcher.StartNewSearch();
         }
+
 
         void OnSearchComplete(Move move)
         {

@@ -11,7 +11,7 @@ public class UCI
 {
     //Write all commands, responses and search results to a file.
     //Used for debugging, by defualt set to false
-    private const bool writeToFile = true;
+    private const bool writeToFile = false;
 
     readonly Bot player;
     readonly LogWriter writer;

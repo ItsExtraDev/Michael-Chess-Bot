@@ -7,6 +7,13 @@ namespace Michael.src.Evaluation
 
         //Variables
         private Board board;
+        private Activity activity;
+
+        public Evaluator()
+        {
+            board = new Board();
+            activity = new Activity();
+        }
 
         readonly int[] PiecesValues =
         {
@@ -21,23 +28,29 @@ namespace Michael.src.Evaluation
         {
             board = MatchManager.board;
 
+            if (board.IsDraw())
+                return 0;
+
+            if (board.IsCheckmate())
+                return -1000000 + board.plyCount;
+
             int evaluation = 0;
 
             evaluation += CountMaterial();
+            evaluation += activity.EvaluatePieceSquares();
 
             int colorBias = board.IsWhiteToMove ? 1 : -1;
 
             return evaluation * colorBias;
         }
 
-        private int CountMaterial()
+        private int CountMaterial(int colorBias = 0)
         {
             int material = 0;
 
             ulong Bitboard;
             int pieceCount;
             int pieceValue;
-            int colorBias;
 
             for (int i = 0; i < 11; i++)
             {
@@ -48,12 +61,30 @@ namespace Michael.src.Evaluation
                 Bitboard = board.PiecesBitboards[i];
                 pieceCount = BitOperations.PopCount(Bitboard);
                 pieceValue = PiecesValues[i % 6];
-                colorBias = i < 6 ? 1 : -1;
+                if (colorBias == 0)
+                    colorBias = i < 6 ? 1 : -1;
 
                 material += pieceCount * pieceValue * colorBias;
             }
 
             return material;
         }
+
+        public int GetNonPawnMaterial()
+        {
+            int totalMaterial = CountMaterial(1);
+
+            int pawnMaterial = 0;
+
+            for (int color = 0; color < 2; color++)
+            {
+                int numPawns = BitOperations.PopCount(board.PiecesBitboards[color * 6]);
+
+                pawnMaterial += numPawns * 100;
+            }
+
+            return totalMaterial - pawnMaterial;
+        }
+
     }
 }

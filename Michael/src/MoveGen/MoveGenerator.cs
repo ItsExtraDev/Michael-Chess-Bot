@@ -160,8 +160,8 @@ namespace Michael.src.MoveGen
                         legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, PromotionPT);
                     }
                 }
-                else if (board.EnPassantSquare == targetSquare)
-                     legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
+                //else if (board.EnPassantSquare == targetSquare)
+                //     legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
                 else
                     legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
@@ -180,8 +180,8 @@ namespace Michael.src.MoveGen
                         legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, PromotionPT);
                     }
                 }
-                else if (board.EnPassantSquare == targetSquare)
-                   legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
+               // else if (board.EnPassantSquare == targetSquare)
+               //    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
                 else
                     legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }

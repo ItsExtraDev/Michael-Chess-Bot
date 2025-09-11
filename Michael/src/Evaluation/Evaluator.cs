@@ -4,18 +4,16 @@ namespace Michael.src.Evaluation
 {
     public class Evaluator
     {
-
-        //Variables
+        //Variable declarations
         private Board board;
-        private Activity activity;
+        private int materialCount;
+        private int evaluation;
+        private int colorBias;
+        private ulong Bitboard;
+        private int pieceValue;
+        private int pieceCount;
 
-        public Evaluator()
-        {
-            board = new Board();
-            activity = new Activity();
-        }
-
-        readonly int[] PiecesValues =
+        private int[] piecesValues =
         {
             100, //Pawn
             320, //Knight
@@ -24,67 +22,48 @@ namespace Michael.src.Evaluation
             900 //Queen
         };
 
+        //Refrances
+        readonly Activity activity;
+
+        public Evaluator()
+        {
+            board = MatchManager.board;
+            activity = new Activity();
+        }
+
         public int Evaluate()
         {
             board = MatchManager.board;
 
-            if (board.IsDraw())
-                return 0;
+            evaluation = 0;
 
-            if (board.IsCheckmate())
-                return -1000000 + board.plyCount;
+            evaluation += CountMaterial(Piece.White);
+            evaluation -= CountMaterial(Piece.Black);
 
-            int evaluation = 0;
-
-            evaluation += CountMaterial();
             evaluation += activity.EvaluatePieceSquares();
 
-            int colorBias = board.IsWhiteToMove ? 1 : -1;
-
+            colorBias = board.IsWhiteToMove ? 1 : -1;
             return evaluation * colorBias;
         }
 
-        private int CountMaterial(int colorBias = 0)
+        private int CountMaterial(int color)
         {
-            int material = 0;
+            int materialCount = 0;
 
-            ulong Bitboard;
-            int pieceCount;
-            int pieceValue;
-
-            for (int i = 0; i < 11; i++)
+            for (int i = 0; i < 6; i++)
             {
                 //Skip kings
-                if (i % 6 == 5)
+                if (i == 5)
                     continue;
 
-                Bitboard = board.PiecesBitboards[i];
+                Bitboard = board.PiecesBitboards[(6 * color) + i];
+
                 pieceCount = BitOperations.PopCount(Bitboard);
-                pieceValue = PiecesValues[i % 6];
-                if (colorBias == 0)
-                    colorBias = i < 6 ? 1 : -1;
+                pieceValue = piecesValues[i];
 
-                material += pieceCount * pieceValue * colorBias;
+                materialCount += pieceValue * pieceCount;// * (color == 0 ? 1 : -1);
             }
-
-            return material;
+            return materialCount;
         }
-
-        public int GetNonPawnMaterial()
-        {
-            int totalMaterial = CountMaterial(1);
-
-            int pawnMaterial = 0;
-
-            for (int color = 0; color < 2; color++)
-            {
-                int numPawns = BitOperations.PopCount(board.PiecesBitboards[color * 6]);
-
-                pawnMaterial += numPawns * 100;
-            }
-
-            return totalMaterial - pawnMaterial;
-        }
-
     }
 }

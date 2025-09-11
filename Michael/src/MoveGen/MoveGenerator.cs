@@ -59,10 +59,24 @@ namespace Michael.src.MoveGen
             // In captures-only (qsearch):
             // - If NOT in check: allow only true captures (opp pieces + EP square)
             // - If IN check: allow all legal evasions (captures + interpositions), so don't restrict by target occupancy
-            ulong epMask = board.EnPassantSquare != 0 ? (1ul << board.EnPassantSquare) : 0ul;
-            ulong captureTargets = board.ColoredBitboards[board.ColorToMove ^ 1] | epMask;
-
-            movementMask = generateCapturesOnly ? captureTargets : ulong.MaxValue;
+            if (generateCapturesOnly)
+            {
+                if (IsInCheck)
+                {
+                    // In check: allow all legal moves (we must try every evasion)
+                    movementMask = ulong.MaxValue;
+                }
+                else
+                {
+                    // Not in check: only captures
+                    ulong epMask = board.EnPassantSquare != 0 ? (1ul << board.EnPassantSquare) : 0ul;
+                    movementMask = board.ColoredBitboards[board.ColorToMove ^ 1] | epMask;
+                }
+            }
+            else
+            {
+                movementMask = ulong.MaxValue;
+            }
 
             GenerateLegalKingMoves(ref legalMoves); // Generate all the legal king moves and add them to the legal moves array.
             if (!IsInDoubleCheck)

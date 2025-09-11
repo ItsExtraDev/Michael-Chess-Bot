@@ -1,83 +1,44 @@
 ﻿using Michael.src.Evaluation;
 using Michael.src.Helpers;
 using System.Diagnostics;
+using System.Formats.Tar;
+using System.Runtime.CompilerServices;
+using System.Xml.Linq;
 
 namespace Michael.src.Search
 {
-    /*
-     * position fen r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -
-        go
-
-    info depth 1 score cp 350 nodes 48 nps 0 time 5 pv e2a6
-    info depth 2 score cp 30 nodes 2135 nps 0 time 28 pv e2a6
-    info depth 3 score cp 350 nodes 102084 nps 0 time 324 pv e2a6
-    info depth 4 score cp -270 nodes 4_287_636 nps 0 time 7284 pv e2a6
-
-    info depth 1 score cp 350 nodes 48 nps 0 time 6 pv e2a6
-    info depth 2 score cp 30 nodes 1089 nps 0 time 16 pv e2a6
-    info depth 3 score cp 350 nodes 25391 nps 0 time 218 pv e2a6
-    info depth 4 score cp -270 nodes 325_044 nps 0 time 531 pv e2a6
-
-    info depth 1 score cp 350 nodes 48 nps 0 time 8 pv e2a6
-    info depth 2 score cp 30 nodes 179 nps 0 time 26 pv e2a6
-    info depth 3 score cp 350 nodes 2439 nps 0 time 92 pv e2a6
-    info depth 4 score cp -170 nodes 8_687 nps 0 time 320 pv e2a6
-    info depth 5 score cp -50 nodes 87913 nps 0 time 471 pv e2a6
-    info depth 6 score cp -670 nodes 317532 nps 0 time 4847 pv e2a6
-    
-    info depth 1 score cp 350 nodes 48 nps 8000 time 6 pv e2a6
-    info depth 2 score cp 30 nodes 131 nps 5458 time 24 pv e2a6
-    info depth 3 score cp 350 nodes 2262 nps 20378 time 111 pv e2a6
-    info depth 4 score cp -170 nodes 5_916 nps 18147 time 327 pv e2a6
-    info depth 5 score cp -50 nodes 58976 nps 145980 time 404 pv e2a6
-    info depth 6 score cp -670 nodes 150982 nps 55754 time 2708 pv e2a6
-     */
     public class Searcher
     {
-        //Variables
+        // Variable Declarations
         private bool searchCancelled;
-        private Board board;
         private Move bestMove;
         private Move bestMoveThisIteration;
         private int bestEval;
         private int bestEvalThisIteration;
-        private int MaxDepth = 256;
-        private int Depth;
         private const int PositiveInfinity = 1000000;
         private const int NegativeInfinity = -1000000;
-        private int TotalNodes = 0;
-        Stopwatch searchTime = new Stopwatch();
-
-        public event Action<Move>? OnSearchComplete;
-
-        //References
-        readonly LogWriter writer;
-        readonly Evaluator evaluator;
-        readonly MoveOrderer orderer;
-
-        // --- Transposition Table ---
-        public enum NodeType { Exact, Alpha, Beta }
-
-        public class TTEntry
-        {
-            public ulong ZobristKey;
-            public int Depth;
-            public int Eval;
-            public NodeType Type;
-            public Move BestMove;
-        }
+        private byte Depth;
+        private Board board;
+        private int totalNodes;
+        private Stopwatch stopwatch;
 
         private const int TTMaxSize = 10_000_000;
         private static Dictionary<ulong, TTEntry> TranspositionTable = new Dictionary<ulong, TTEntry>(TTMaxSize);
 
+        //references
+        readonly Evaluator evaluator;
+        readonly MoveOrderer moveOrderer;
+
+        // public stuff
+        public event Action<Move> OnSearchComplete;
+
         public Searcher()
         {
-            board = MatchManager.board;
-            bestMove = bestMoveThisIteration = Move.NullMove();
-
-            writer = new LogWriter(FileType.Search, true);
             evaluator = new Evaluator();
-            orderer = new MoveOrderer();
+            moveOrderer = new MoveOrderer();
+            bestMove = bestMoveThisIteration = Move.NullMove();
+            board = MatchManager.board;
+            stopwatch = new Stopwatch();
         }
 
         public void EndSearch()
@@ -87,12 +48,9 @@ namespace Michael.src.Search
 
         public void StartNewSearch()
         {
-            searchCancelled = false;
             board = MatchManager.board;
-            bestMove = Move.NullMove();
-            bestEvalThisIteration = NegativeInfinity;
-            TranspositionTable.Clear();
-
+            searchCancelled = false;
+            bestMove = bestMoveThisIteration = Move.NullMove();
             StartIlliterateDeepeningSearch();
 
             OnSearchComplete?.Invoke(bestMove);
@@ -100,11 +58,14 @@ namespace Michael.src.Search
 
         private void StartIlliterateDeepeningSearch()
         {
-            for (Depth = 1; Depth <= MaxDepth; Depth++)
-            {
-                searchTime.Restart();
-                TotalNodes = 0;
+            // clear TT once at the start of the whole search
+            TranspositionTable.Clear();
 
+            for (Depth = 1; Depth < 255; Depth++)
+            {
+                totalNodes = 0;
+
+                stopwatch.Restart();
                 Search(Depth, NegativeInfinity, PositiveInfinity);
 
                 if (searchCancelled)
@@ -119,69 +80,76 @@ namespace Michael.src.Search
 
                 PrintInfoMessage();
             }
+
+            // If we never found a root move, try to recover from TT (optional)
+            if (bestMove == Move.NullMove())
+            {
+                ulong key = Zobrist.ComputeHash(board);
+                if (TranspositionTable.TryGetValue(key, out TTEntry entry))
+                {
+                    bestMove = entry.bestMove;
+                }
+            }
         }
 
-        public int Search(int depth, int alpha, int beta)
+        private int Search(int depth, int alpha, int beta)
         {
-            if (searchCancelled)
+            if (searchCancelled && Depth > 1)
                 return 0;
+
+            int originalAlpha = alpha;
+
+            // Transposition Table Lookup
+            ulong key = Zobrist.ComputeHash(board);
+            if (TranspositionTable.TryGetValue(key, out TTEntry entry) && entry.Depth >= depth)
+            {
+                if (entry.NodeType == NodeType.Exact)
+                    return entry.Evaluation;
+                else if (entry.NodeType == NodeType.Lowerbound && entry.Evaluation >= beta)
+                    return entry.Evaluation;
+                else if (entry.NodeType == NodeType.Upperbound && entry.Evaluation <= alpha)
+                    return entry.Evaluation;
+            }
 
             if (board.IsDraw())
                 return 0;
 
             if (board.IsCheckmate())
-                return -1000000 + board.plyCount;
+            {
+                int plyFromRoot = Depth - depth;
+                return NegativeInfinity + plyFromRoot;
+            }
 
-            Move[] legalMoves = board.GetLegalMoves();
-
-            if (depth == 0 || legalMoves.Length == 0)
+            if (depth == 0)
                 return Quiesce(alpha, beta);
 
-            ulong key = Zobrist.ComputeHash(board);
-
-            // TT Lookup
-            if (TranspositionTable.TryGetValue(key, out TTEntry entry) && entry.Depth >= depth)
-            {
-                if (entry.Type == NodeType.Exact)
-                    return entry.Eval;
-                if (entry.Type == NodeType.Alpha && entry.Eval <= alpha)
-                    return alpha;
-                if (entry.Type == NodeType.Beta && entry.Eval >= beta)
-                    return beta;
-            }
-
             int bestScore = NegativeInfinity;
+            Move bestMoveAtNode = Move.NullMove(); // local best move for this node
+            Move[] legalMoves = board.GetLegalMoves();
+            moveOrderer.OrderMoves(ref legalMoves, Depth == depth ? bestMove : Move.NullMove(), board, Depth - depth);
 
-            // Move ordering (try TT best move first if exists)
-            if (entry != null && entry.BestMove != Move.NullMove())
+            NodeType nodeType = NodeType.Upperbound;
+
+            for (int i = 0; i < legalMoves.Length; i++)
             {
-                int idx = Array.IndexOf(legalMoves, entry.BestMove);
-                if (idx > 0)
-                {
-                    var tmp = legalMoves[0];
-                    legalMoves[0] = legalMoves[idx];
-                    legalMoves[idx] = tmp;
-                }
-            }
+                if (searchCancelled && Depth > 1)
+                    break;
 
-            orderer.OrderMoves(ref legalMoves, depth == Depth ? bestMoveThisIteration : Move.NullMove());
-
-            Move bestLocalMove = Move.NullMove();
-            NodeType nodeType = NodeType.Alpha;
-
-            for (int moveIndex = 0; moveIndex < legalMoves.Length; moveIndex++)
-            {
-                TotalNodes++;
-                Move move = legalMoves[moveIndex];
+                Move move = legalMoves[i];
+                totalNodes++;
 
                 board.MakeMove(move);
+                bool isCapture = GameState.IsCapture(board.CurrentGameState);
                 int score = -Search(depth - 1, -beta, -alpha);
                 board.UndoMove(move);
+
+                if (searchCancelled && Depth > 1)
+                    break;
 
                 if (score > bestScore)
                 {
                     bestScore = score;
-                    bestLocalMove = move;
+                    bestMoveAtNode = move;
 
                     if (depth == Depth)
                     {
@@ -190,75 +158,114 @@ namespace Michael.src.Search
                     }
                 }
 
-                alpha = Math.Max(alpha, score);
+                if (bestScore > alpha)
+                {
+                    alpha = bestScore;
+                    // don't set nodeType to Exact yet — decide after loop by comparing to originalAlpha/beta
+                }
+
                 if (alpha >= beta)
                 {
-                    nodeType = NodeType.Beta;
+                    //Stop killer move
+                    if (!isCapture)
+                    {
+                        moveOrderer.AddKillerMove(move, Depth - depth);
+                    }
+
+                    // fail-high
+                    nodeType = NodeType.Lowerbound;
                     break;
                 }
             }
 
-            // Save in TT
+            // determine node type correctly using originalAlpha/beta
+            if (bestScore <= originalAlpha)
+            {
+                nodeType = NodeType.Upperbound;
+            }
+            else if (bestScore >= beta)
+            {
+                nodeType = NodeType.Lowerbound;
+            }
+            else
+            {
+                nodeType = NodeType.Exact;
+            }
+
+            // Store in TT: use the local bestMoveAtNode
             TranspositionTable[key] = new TTEntry
             {
                 ZobristKey = key,
                 Depth = depth,
-                Eval = bestScore,
-                Type = bestScore >= beta ? NodeType.Beta : (bestScore > alpha ? NodeType.Exact : NodeType.Alpha),
-                BestMove = bestLocalMove
+                Evaluation = bestScore,
+                NodeType = nodeType,
+                bestMove = bestMoveAtNode
             };
 
             return bestScore;
         }
 
-        int Quiesce(int alpha, int beta)
+        private int Quiesce(int alpha, int beta)
         {
-            ulong key = Zobrist.ComputeHash(board);
+            if (searchCancelled && Depth > 1)
+            {
+                return 0;
+            }
 
-            // TT Lookup
+            ulong key = Zobrist.ComputeHash(board);
             if (TranspositionTable.TryGetValue(key, out TTEntry entry) && entry.Depth >= 0)
             {
-                if (entry.Type == NodeType.Exact)
-                    return entry.Eval;
-                if (entry.Type == NodeType.Alpha && entry.Eval <= alpha)
+                if (entry.NodeType == NodeType.Exact)
+                    return entry.Evaluation;
+                if (entry.NodeType == NodeType.Upperbound && entry.Evaluation <= alpha)
                     return alpha;
-                if (entry.Type == NodeType.Beta && entry.Eval >= beta)
+                if (entry.NodeType == NodeType.Lowerbound && entry.Evaluation >= beta)
                     return beta;
             }
 
-            int static_eval = evaluator.Evaluate();
+            int staticEval = evaluator.Evaluate();
+            int bestValue = staticEval;
 
-            int best_value = static_eval;
-            if (best_value >= beta)
-                return best_value;
-            if (best_value > alpha)
-                alpha = best_value;
+            if (bestValue >= beta)
+                return bestValue;
+            if (bestValue > alpha)
+                alpha = bestValue;
 
-            Move[] legalCaptures = board.GetLegalMoves(true);
-            orderer.OrderMoves(ref legalCaptures, Move.NullMove());
+            Move[] captures = board.GetLegalMoves(true);
+            moveOrderer.OrderMoves(ref captures, Move.NullMove(), board, 0);
 
-            Move bestLocalMove = Move.NullMove();
-            NodeType nodeType = NodeType.Alpha;
+            Move bestMove = Move.NullMove();
+            NodeType nodeType = NodeType.Upperbound;
 
-            for (int i = 0; i < legalCaptures.Length; i++)
+            for (int i = 0; i < captures.Length; i++)
             {
-                TotalNodes++;
-                Move move = legalCaptures[i];
+                if (searchCancelled && Depth > 1)
+                {
+                    break;
+                }
+
+                Move move = captures[i];
                 board.MakeMove(move);
+                totalNodes++;
                 int score = -Quiesce(-beta, -alpha);
                 board.UndoMove(move);
 
-                if (score >= beta)
+                if (searchCancelled && Depth > 1)
                 {
-                    nodeType = NodeType.Beta;
-                    best_value = score;
-                    bestLocalMove = move;
                     break;
                 }
-                if (score > best_value)
+
+                if (score >= beta)
                 {
-                    best_value = score;
-                    bestLocalMove = move;
+                    nodeType = NodeType.Lowerbound;
+                    bestValue = score;
+                    bestMove = move;
+                    break;
+                }
+                if (score > bestValue)
+                {
+                    bestValue = score;
+                    bestMove = move;
                 }
                 if (score > alpha)
                 {
@@ -267,25 +274,25 @@ namespace Michael.src.Search
                 }
             }
 
-            // Save in TT
             TranspositionTable[key] = new TTEntry
             {
                 ZobristKey = key,
                 Depth = 0,
-                Eval = best_value,
-                Type = nodeType,
-                BestMove = bestLocalMove
+                Evaluation = bestValue,
+                NodeType = nodeType,
+                bestMove = bestMove
             };
 
-            return best_value;
+            return bestValue;
         }
 
-        void PrintInfoMessage()
+        private void PrintInfoMessage()
         {
-            long elapsedMs = Math.Max(1, searchTime.ElapsedMilliseconds);
-            long nps = (TotalNodes * 1000L) / elapsedMs;
-
-            Console.WriteLine($"info depth {Depth} score cp {bestEval} nodes {TotalNodes} nps {nps} time {searchTime.ElapsedMilliseconds} pv {Notation.MoveToAlgebraic(bestMove)}");
+            long elapsedMs = Math.Max(1, stopwatch.ElapsedMilliseconds);
+            long nps = (long)totalNodes * 1000 / elapsedMs;
+            Console.WriteLine($"info depth {Depth} score cp {bestEval} nodes {totalNodes} nps {nps} time {elapsedMs} pv {Notation.MoveToAlgebraic(bestMove)}");
         }
+
     }
 }
+

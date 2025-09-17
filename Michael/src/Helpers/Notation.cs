@@ -88,11 +88,11 @@ namespace Michael.src.Helpers
         public static void PrintPerftTest(Board b, int depth)
         {
             Stopwatch sw = Stopwatch.StartNew();
-            int totalNodes = 0;
+            ulong totalNodes = 0;
 
             foreach(Move move in b.GetLegalMoves())
             {
-                int nodes = 1;
+                ulong nodes = 1;
                 if (depth > 1)
                 {
                     b.MakeMove(move); // Make the move on the board
@@ -104,7 +104,7 @@ namespace Michael.src.Helpers
             }
             sw.Stop();
             Console.WriteLine($"Looked at a total of {totalNodes} Nodes in {sw.ElapsedMilliseconds} ms.");
-            Console.WriteLine($"That is an avarge of {totalNodes / sw.ElapsedMilliseconds * 1000} nps.");
+            Console.WriteLine($"That is an avarge of {totalNodes / (ulong)sw.ElapsedMilliseconds * 1000} nps.");
         }
     }
 }

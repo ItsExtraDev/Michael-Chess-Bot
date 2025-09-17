@@ -17,8 +17,8 @@ namespace Michael.src.Search
             // initialise killers to NullMove if Move is a struct
             for (int i = 0; i < KillerMoves.GetLength(0); i++)
             {
-                KillerMoves[i, 0] = Move.NullMove();
-                KillerMoves[i, 1] = Move.NullMove();
+                KillerMoves[i, 0] = Move.NullMove;
+                KillerMoves[i, 1] = Move.NullMove;
             }
         }
 

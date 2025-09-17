@@ -1,6 +1,7 @@
 ﻿using Michael.src.Helpers;
 using System.Numerics;
 
+
 namespace Michael.src.MoveGen
 {
 
@@ -88,7 +89,7 @@ namespace Michael.src.MoveGen
 
             //Convert the array to a span and slice to the amount of legal moves in the position and return as an array.
             //This is done to no return 218 moves when there are less than that in the position.
-            legalMoves = legalMoves.Slice(0, CurrentMoveIndex).ToArray(); 
+            legalMoves = legalMoves.Slice(0, CurrentMoveIndex).ToArray();
         }
 
         /// <summary>
@@ -106,20 +107,20 @@ namespace Michael.src.MoveGen
             //The rank each color need to get to in order to promote a pawn
             int finalRank = board.ColorToMove == Piece.White ? 7 : 0;
             //pawns can move up one rank, only to empty squares.
-            ulong oneRankPush = BitboardHelper.ShiftBitboard(pawnsPush, 8*moveDir);
+            ulong oneRankPush = BitboardHelper.ShiftBitboard(pawnsPush, 8 * moveDir);
 
             ulong piecesToCapture = board.ColoredBitboards[board.ColorToMove ^ 1];
             if (board.EnPassantSquare != 0)
             {
                 piecesToCapture |= (1ul << board.EnPassantSquare);
             }
-            ulong CaptureLeft = ((BitboardHelper.ShiftBitboard(pawnsCapture, 8*moveDir) >> 1) & piecesToCapture) & PrecomputeMoveData.NotHFile & checkRayMask & movementMask;
-            ulong CaptureRight = ((BitboardHelper.ShiftBitboard(pawnsCapture, 8*moveDir) << 1) & piecesToCapture) & PrecomputeMoveData.NotAFile & checkRayMask & movementMask;
+            ulong CaptureLeft = ((BitboardHelper.ShiftBitboard(pawnsCapture, 8 * moveDir) >> 1) & piecesToCapture) & PrecomputeMoveData.NotHFile & checkRayMask & movementMask;
+            ulong CaptureRight = ((BitboardHelper.ShiftBitboard(pawnsCapture, 8 * moveDir) << 1) & piecesToCapture) & PrecomputeMoveData.NotAFile & checkRayMask & movementMask;
             oneRankPush &= board.ColoredBitboards[2];
-            ulong twoRankPush = (BitboardHelper.ShiftBitboard(oneRankPush, 8*moveDir)) & board.ColoredBitboards[2] & checkRayMask;
+            ulong twoRankPush = (BitboardHelper.ShiftBitboard(oneRankPush, 8 * moveDir)) & board.ColoredBitboards[2] & checkRayMask;
 
             //Make sure a pawn can push 2 squares only if on the starting square
-            twoRankPush &= (board.ColorToMove == Piece.White ?  BitboardHelper.Rank4 : BitboardHelper.Rank5) & movementMask;
+            twoRankPush &= (board.ColorToMove == Piece.White ? BitboardHelper.Rank4 : BitboardHelper.Rank5) & movementMask;
             oneRankPush &= checkRayMask & movementMask;
 
 
@@ -140,9 +141,9 @@ namespace Michael.src.MoveGen
                     {
                         legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, PromotionPT);
                     }
+                    continue;
                 }
-                else
-                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
+                legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
             //Two rank push
             while (twoRankPush != 0)
@@ -173,11 +174,11 @@ namespace Michael.src.MoveGen
                     {
                         legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, PromotionPT);
                     }
+                    continue;
                 }
-                //else if (board.EnPassantSquare == targetSquare)
-                //     legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
-                else
-                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
+                else if (board.EnPassantSquare == targetSquare)
+                     legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
+                else legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
             while (CaptureRight != 0)
             {
@@ -193,11 +194,11 @@ namespace Michael.src.MoveGen
                     {
                         legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, PromotionPT);
                     }
+                    continue;
                 }
-               // else if (board.EnPassantSquare == targetSquare)
-               //    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
-                else
-                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
+                 else if (board.EnPassantSquare == targetSquare)
+                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
+                 else legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
         }
 
@@ -228,7 +229,7 @@ namespace Michael.src.MoveGen
         /// <param name="legalMoves">the array to return the legal king moves</param>
         public static void GenerateLegalKingMoves(ref Span<Move> legalMoves)
         {
-            
+
             ulong kingAttacks = KingMoves[friendlyKingSquare] & enemyBitboardAndEmptySquares & ~enemyAttacks; // Get the precomputed moves for the king from that square.
             if (!IsInCheck)
             {
@@ -272,66 +273,73 @@ namespace Michael.src.MoveGen
         }
 
         /// <summary>
-        /// Generates all the legal moves for the sliding pieces (rooks, bishops, and queens) and returns to the given legalMoves array.
+        /// Generates all legal sliding moves for rooks, bishops and queens.
         /// </summary>
-        /// <param name="legalMoves">the array to return the legal moves to</param>
         private static void GenerateLegalSlidingMoves(ref Span<Move> legalMoves)
         {
-            ulong orthogonalPieces = (board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Rook, board.ColorToMove)]
-                                    | board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove)]) & ~DiagonalPinMask;
-            ulong diagonalPieces = (board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Bishop, board.ColorToMove)] |
-                       board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove)]) & ~OrthogonalPinMask;
-            
+            // Precompute bitboards only once
+            ulong rooksAndQueens = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Rook, board.ColorToMove)] |
+                                   board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove)];
 
-            while (orthogonalPieces != 0)
-            {
-                int startingSquare = BitboardHelper.PopLSB(ref orthogonalPieces);
+            ulong bishopsAndQueens = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Bishop, board.ColorToMove)] |
+                                     board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove)];
 
-                // Blockers are all pieces (both colors) masked with rook's blocker mask
-                ulong blockers = ~board.ColoredBitboards[2] & Magic.GetRookAttackMask(startingSquare);
+            // Orthogonal (rook) sliders
+            GenerateSlidingMovesByBitboard(
+                rooksAndQueens & ~DiagonalPinMask & ~OrthogonalPinMask,
+                ref legalMoves,
+                true);
 
-                // Calculate attacks given blockers
-                ulong attacks = Magic.GetRookAttacks(startingSquare, blockers) & checkRayMask & movementMask;
+            // Orthogonal pinned
+            GenerateSlidingMovesByBitboard(
+                rooksAndQueens & ~DiagonalPinMask & OrthogonalPinMask,
+                ref legalMoves,
+                true,
+                OrthogonalPinMovementMask);
 
-                if ((OrthogonalPinMask & 1ul << startingSquare) != 0)
-                    attacks &= OrthogonalPinMovementMask;
+            // Diagonal (bishop) sliders
+            GenerateSlidingMovesByBitboard(
+                bishopsAndQueens & ~OrthogonalPinMask & ~DiagonalPinMask,
+                ref legalMoves,
+                false);
 
-                // Remove friendly squares from attacks
-                attacks &= ~board.ColoredBitboards[board.ColorToMove];
-
-                while (attacks != 0)
-                {
-                    int targetSquare = BitboardHelper.PopLSB(ref attacks);
-
-                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
-                }
-            }
-
-            while (diagonalPieces != 0)
-            {
-                int startingSquare = BitboardHelper.PopLSB(ref diagonalPieces);
-
-                // Blockers are all pieces (both colors) masked with bishop's blocker mask
-                ulong blockers = ~board.ColoredBitboards[2] & Magic.GetBishopAttackMask(startingSquare);
-
-                // Calculate attacks given blockers
-                ulong attacks = Magic.GetBishopAttacks(startingSquare, blockers) & checkRayMask & movementMask;
-
-                if ((DiagonalPinMask & 1ul << startingSquare) != 0)
-                    attacks &= DiagonalPinMovementMask;
-
-                // Remove friendly squares from attacks
-                attacks &= ~board.ColoredBitboards[board.ColorToMove];
-
-                while (attacks != 0)
-                {
-                    int targetSquare = BitboardHelper.PopLSB(ref attacks);
-
-                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
-                }
-            }
-
+            // Diagonal pinned
+            GenerateSlidingMovesByBitboard(
+                bishopsAndQueens & ~OrthogonalPinMask & DiagonalPinMask,
+                ref legalMoves,
+                false,
+                DiagonalPinMovementMask);
         }
+
+        private static void GenerateSlidingMovesByBitboard(
+            ulong pieces, ref Span<Move> legalMoves,
+            bool isRook, ulong pinMask = ulong.MaxValue)
+        {
+            // Precompute blockers and friendlies once
+            ulong blockers = ~board.ColoredBitboards[2];
+            ulong friendly = board.ColoredBitboards[board.ColorToMove];
+
+            while (pieces != 0)
+            {
+                int from = BitboardHelper.PopLSB(ref pieces);
+
+                // directly mask friendly squares and pins
+                ulong attacks = (isRook
+                                    ? Magic.GetRookAttacks(from, blockers)
+                                    : Magic.GetBishopAttacks(from, blockers))
+                                & checkRayMask
+                                & movementMask
+                                & pinMask
+                                & ~friendly; // friendly removed here
+
+                while (attacks != 0)
+                {
+                    int to = BitboardHelper.PopLSB(ref attacks);
+                    legalMoves[CurrentMoveIndex++] = new Move(from, to);
+                }
+            }
+        }
+
 
 
         private static void Init()
@@ -358,9 +366,8 @@ namespace Michael.src.MoveGen
 
             ulong pawns = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Pawn, board.ColorToMove ^ 1)];
             ulong knights = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Knight, board.ColorToMove ^ 1)];
-            ulong bishops = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Bishop, board.ColorToMove ^ 1)];
-            ulong rooks = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Rook, board.ColorToMove ^ 1)];
-            ulong queens = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove ^ 1)];
+            ulong bishops = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Bishop, board.ColorToMove ^ 1)] | board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove ^ 1)];
+            ulong rooks = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Rook, board.ColorToMove ^ 1)] | board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.Queen, board.ColorToMove ^ 1)];
             ulong king = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.King, board.ColorToMove ^ 1)];
 
             while (pawns != 0)
@@ -391,91 +398,62 @@ namespace Michael.src.MoveGen
                 attacks |= KnightMoves[square];
             }
 
+            ulong blockers = ~board.ColoredBitboards[2] ^ 1ul << friendlyKingSquare;
+
+            ulong BishopAttacks;
+            ulong BishopTunnel;
+
             while (bishops != 0)
             {
                 int square = BitboardHelper.PopLSB(ref bishops);
-                ulong blockers = (~board.ColoredBitboards[2] & Magic.GetBishopAttackMask(square)) ^ 1ul << friendlyKingSquare;
 
-                if ((Magic.GetBishopAttacks(square, blockers) & 1ul << friendlyKingSquare) != 0)
+                BishopAttacks = Magic.GetBishopAttacks(square, blockers);
+                BishopTunnel = BoardHelper.GetAttackTunnel(square, friendlyKingSquare, false);
+
+                if ((BishopAttacks & 1ul << friendlyKingSquare) != 0)
                 {
                     IsInDoubleCheck = IsInCheck;
                     IsInCheck = true;
                     checkRayMask |= 1ul << square;
-                    checkRayMask |= BoardHelper.GetAttackTunnel(square, friendlyKingSquare, false);
+                    checkRayMask |= BishopTunnel;
                 }
 
-                ulong diagonalPin = (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, false) & ~board.ColoredBitboards[2]);
+                ulong diagonalPin = BishopTunnel & ~board.ColoredBitboards[2];
                 if (BitOperations.PopCount(diagonalPin) == 1)
                 {
                     DiagonalPinMask |= diagonalPin;
-                    DiagonalPinMovementMask |= (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, false));
+                    DiagonalPinMovementMask |= BishopTunnel;
                     DiagonalPinMovementMask |= 1ul << square;
                 }
-                attacks |= Magic.GetBishopAttacks(square, blockers);
+                attacks |= BishopAttacks;
             }
 
+            ulong rookAttacks;
+            ulong rookTunnel;
             while (rooks != 0)
             {
                 int square = BitboardHelper.PopLSB(ref rooks);
-                ulong blockers = (~board.ColoredBitboards[2] & Magic.GetRookAttackMask(square)) ^ 1ul << friendlyKingSquare;
 
-                if ((Magic.GetRookAttacks(square, blockers) & 1ul << friendlyKingSquare) != 0)
+                rookAttacks = Magic.GetRookAttacks(square, blockers);
+                rookTunnel = BoardHelper.GetAttackTunnel(square, friendlyKingSquare, true);
+
+                if ((rookAttacks & 1ul << friendlyKingSquare) != 0)
                 {
                     IsInDoubleCheck = IsInCheck;
                     IsInCheck = true;
                     checkRayMask |= 1ul << square;
-                    checkRayMask |= BoardHelper.GetAttackTunnel(square, friendlyKingSquare, true);
+                    checkRayMask |= rookTunnel;
                 }
 
-                ulong orthogonalPin = (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, true) & ~board.ColoredBitboards[2]);
+                ulong orthogonalPin = rookTunnel & ~board.ColoredBitboards[2];
                 if (BitOperations.PopCount(orthogonalPin) == 1)
                 {
-                    OrthogonalPinMovementMask |= (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, true));
+                    OrthogonalPinMovementMask |= rookTunnel;
                     OrthogonalPinMask |= orthogonalPin;
                     OrthogonalPinMovementMask |= 1ul << square;
                 }
 
-                attacks |= Magic.GetRookAttacks(square, blockers);
-            }
-            while (queens != 0)
-            {
-                int square = BitboardHelper.PopLSB(ref queens);
-
-                ulong blockers = (~board.ColoredBitboards[2] & (Magic.GetRookAttackMask(square) | Magic.GetBishopAttackMask(square))) ^ 1ul << friendlyKingSquare;
-
-                attacks |= Magic.GetBishopAttacks(square, blockers);
-                attacks |= Magic.GetRookAttacks(square, blockers);
-
-                if ((Magic.GetBishopAttacks(square, blockers) & 1ul << friendlyKingSquare) != 0)
-                {
-                    IsInDoubleCheck = IsInCheck;
-                    IsInCheck = true;
-                    checkRayMask |= 1ul << square;
-                    checkRayMask |= BoardHelper.GetAttackTunnel(square, friendlyKingSquare, false);
-                }
-                if ((Magic.GetRookAttacks(square, blockers) & 1ul << friendlyKingSquare) != 0)
-                {
-                    IsInDoubleCheck = IsInCheck;
-                    IsInCheck = true;
-                    checkRayMask |= 1ul << square;
-                    checkRayMask |= BoardHelper.GetAttackTunnel(square, friendlyKingSquare, true);
-                }
-
-                ulong diagonalPin = (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, false) & ~board.ColoredBitboards[2]);
-                if (BitOperations.PopCount(diagonalPin) == 1)
-                {
-                    DiagonalPinMask |= diagonalPin;
-                    DiagonalPinMovementMask |= (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, false));
-                    DiagonalPinMovementMask |= 1ul << square;
-                }
-
-                ulong orthogonalPin = (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, true) & ~board.ColoredBitboards[2]);
-                if (BitOperations.PopCount(orthogonalPin) == 1)
-                {
-                    OrthogonalPinMask |= orthogonalPin;
-                    OrthogonalPinMovementMask |= (BoardHelper.GetAttackTunnel(square, friendlyKingSquare, true));
-                    OrthogonalPinMovementMask |= 1ul << square;
-                }
+                attacks |= rookAttacks;
             }
 
             attacks |= KingMoves[Math.Min(63, BitOperations.TrailingZeroCount(king))];
@@ -490,14 +468,14 @@ namespace Michael.src.MoveGen
         /// used for perft testing, debbuging and move generation validation and to help optimize.
         /// </summary>
         /// <returns></returns>
-        public static int Perft(Board b, int depth)
+        public static ulong Perft(Board b, int depth)
         {
             if (depth == 1)
             {
-                return b.GetLegalMoves().Length; // If we are at depth 1, return the number of legal moves in the position.
+                return (ulong)b.GetLegalMoves().Length; // If we are at depth 1, return the number of legal moves in the position.
             }
 
-            int numPosition = 0; // Initialize the number of positions to 0.
+            ulong numPosition = 0; // Initialize the number of positions to 0.
 
             foreach (Move move in b.GetLegalMoves())
             {

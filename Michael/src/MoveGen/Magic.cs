@@ -1,5 +1,6 @@
-﻿using Michael.src.Helpers;
-using System.Numerics;
+﻿using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics.X86;
 
 namespace Michael.src.MoveGen
 {
@@ -15,6 +16,7 @@ namespace Michael.src.MoveGen
     {
         public static void Init()
         {
+            PrecomputeEdges();
             PrecomputeRookAttacks();
             PrecomputeBishopAttacks();
         }
@@ -90,13 +92,26 @@ namespace Michael.src.MoveGen
 
         private static readonly int[] RookOffsets = { -8, -1, 1, 8 };
         private static ulong[][] PrecomputedRookAttacks = new ulong[64][];
-        private static ulong[] PrecomputedRookAttackMask = new ulong[64];
+        public static ulong[] PrecomputedRookAttackMask = new ulong[64];
+        private static bool[,] RookEdgeSquares = new bool[64, 4]; // per square per direction
+
+        //Apperantly newer CPUs have custom instruction which does the same thing as magic bitboards, but faster.
+        //If the CPU can use this (Bmi), use it, otherwise resort to regular magic number calculation
 
         private static int GetRookIndex(int square, ulong blockers)
         {
             ulong mask = PrecomputedRookAttackMask[square];
+            // Fast path: use PEXT (parallel bit extract) if available
+            if (Bmi2.X64.IsSupported)
+            {
+                // Extract only the bits covered by mask into low-order bits
+                ulong compressed = Bmi2.X64.ParallelBitExtract(blockers, mask);
+                return (int)compressed;
+            }
+
+            // Fallback: classic magic multiplication & shift
             blockers &= mask;
-            return (int)((blockers * MagicRookNumbers[square]) >> (int)MagicRookShifts[square]);
+            return (int)((blockers * MagicRookNumbers[square]) >> MagicRookShifts[square]);
         }
 
         public static ulong GetRookAttacks(int square, ulong blockers)
@@ -124,7 +139,7 @@ namespace Michael.src.MoveGen
                     {
                         break;
                     }
-                    if (isFromMoveGen && IsSquareLastOnDirection(currentSquare - offset, offset) || !isFromMoveGen && (IsSquareLastOnDirection(currentSquare, offset)))
+                    if (!isFromMoveGen && RookEdgeSquares[currentSquare, index] || isFromMoveGen && RookEdgeSquares[currentSquare - offset, index])
                         break;
 
                     attackMask |= 1ul << currentSquare;
@@ -185,10 +200,20 @@ namespace Michael.src.MoveGen
 
         private static readonly int[] BishopOffsets = { -9, -7, 7, 9 };
         private static ulong[][] PrecomputedBishopAttacks = new ulong[64][];
-        private static ulong[] PrecomputedBishopAttackMask = new ulong[64];
+        public static ulong[] PrecomputedBishopAttackMask = new ulong[64];
+        private static bool[,] BishopEdgeSquares = new bool[64, 4]; // per square per diagonal
+
+        //Apperantly newer CPUs have custom instruction which does the same thing as magic bitboards, but faster.
+        //If the CPU can use this (Bmi), use it, otherwise resort to regular magic number calculation
         private static int GetBishopIndex(int square, ulong blockers)
         {
             ulong mask = PrecomputedBishopAttackMask[square];
+            if (Bmi2.X64.IsSupported)
+            {
+                ulong compressed = Bmi2.X64.ParallelBitExtract(blockers, mask);
+                return (int)compressed;
+            }
+
             blockers &= mask;
             return (int)((blockers * MagicBishopNumbers[square]) >> MagicBishopShifts[square]);
         }
@@ -213,8 +238,8 @@ namespace Michael.src.MoveGen
                     currentSquare += offset;
                     if (!IsSquareOnBoard(currentSquare)) break;
                     if (!AreSquaresInDiagonal(square, currentSquare)) break;
-                    if (isFromMoveGen && (IsSquareLastOnDirection(currentSquare - offset, offset)) ||
-                        (!isFromMoveGen && IsSquareLastOnDirection(currentSquare, offset)))
+                    if (isFromMoveGen && BishopEdgeSquares[currentSquare - offset, i] ||
+                        (!isFromMoveGen && BishopEdgeSquares[currentSquare, i]))
                         break;
 
                     attackMask |= 1ul << currentSquare;
@@ -274,8 +299,28 @@ namespace Michael.src.MoveGen
 
         #region Helpers
 
+        private static void PrecomputeEdges()
+        {
+            for (int square = 0; square < 64; square++)
+            {
+                int rank = square >> 3;
+                int file = square & 7;
+
+                // Rook edges
+                RookEdgeSquares[square, 0] = rank == 0;  // -8
+                RookEdgeSquares[square, 1] = file == 0;  // -1
+                RookEdgeSquares[square, 2] = file == 7;  // +1
+                RookEdgeSquares[square, 3] = rank == 7;  // +8
+
+                // Bishop edges
+                BishopEdgeSquares[square, 0] = rank == 0 || file == 0;  // -9
+                BishopEdgeSquares[square, 1] = rank == 0 || file == 7;  // -7
+                BishopEdgeSquares[square, 2] = rank == 7 || file == 0;  // +7
+                BishopEdgeSquares[square, 3] = rank == 7 || file == 7;  // +9
+            }
+        }
         private static bool IsSquareOnBoard(int square)
-            => square >= 0 && square < 64;
+            => (uint)square < 64;
 
         private static List<int> GetSetBits(ulong bb)
         {
@@ -288,40 +333,30 @@ namespace Michael.src.MoveGen
             return bits;
         }
 
-        private static bool IsSquareLastOnDirection(int square, int offset)
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool AreSquaresInDiagonal(int sq1, int sq2)
         {
-            int rank = BoardHelper.Rank(square);
-            int file = BoardHelper.File(square);
+            int r1 = sq1 >> 3;      // rank
+            int f1 = sq1 & 7;       // file
+            int r2 = sq2 >> 3;
+            int f2 = sq2 & 7;
 
-            return offset switch
-            {
-                -1 => file == 0,
-                1 => file == 7,
-                -8 => rank == 0,
-                8 => rank == 7,
-                -9 => rank == 0 || file == 0,
-                -7 => rank == 0 || file == 7,
-                7 => rank == 7 || file == 0,
-                9 => rank == 7 || file == 7,
-                _ => false,
-            };
-        }
+            // instead of Math.Abs:
+            int dr = r1 - r2;
+            if (dr < 0) dr = -dr;
+            int df = f1 - f2;
+            if (df < 0) df = -df;
 
-        private static bool AreSquaresInDiagonal(int square1, int square2)
-        {
-            int rank1 = BoardHelper.Rank(square1);
-            int file1 = BoardHelper.File(square1);
-            int rank2 = BoardHelper.Rank(square2);
-            int file2 = BoardHelper.File(square2);
-
-            return Math.Abs(rank1 - rank2) == Math.Abs(file1 - file2);
+            return dr == df;
         }
 
 
-        private static bool AreSquaresInRow(int square1, int square2)
-            => (BoardHelper.Rank(square1) == BoardHelper.Rank(square2) || BoardHelper.File(square1) == BoardHelper.File(square2));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool AreSquaresInRow(int sq1, int sq2)
+    => ((sq1 >> 3) == (sq2 >> 3)) || ((sq1 & 7) == (sq2 & 7));
+
         #endregion
     }
 }
-
-

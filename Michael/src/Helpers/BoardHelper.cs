@@ -14,7 +14,7 @@ namespace Michael.src.Helpers
         /// <param name="square"></param>
         /// <returns>The rank of the given square</returns>
         public static int Rank(int square)
-            => square / 8;
+            => square >> 3;
 
         /// <summary>
         /// Calculates the file of the given square
@@ -22,10 +22,7 @@ namespace Michael.src.Helpers
         /// <param name="square"></param>
         /// <returns>The file of the given square</returns>
         public static int File(int square)
-            => square % 8;
-
-        public static bool IsOnBoard(int square)
-            => square >= 0 && square < 64;
+            => square & 7;
 
         /// <summary>
         /// Prints a copy of the board to command promt.
@@ -54,32 +51,31 @@ namespace Michael.src.Helpers
             Console.WriteLine("   a   b   c   d   e   f   g   h");
         }
 
+        /// <summary>
+        /// Returns the bitboard representing the "attack tunnel" between two squares.
+        /// This is used mainly for x-ray attacks for rooks and bishops.
+        /// </summary>
+        /// <param name="square1">The attacking piece's square.</param>
+        /// <param name="square2">The target square.</param>
+        /// <param name="IsRook">True if the piece is a rook, false for bishop.</param>
+        /// <returns>A bitboard of squares that lie between the two squares in the line of attack, or 0 if not aligned.</returns>
         public static ulong GetAttackTunnel(int square1, int square2, bool IsRook)
         {
-
             if (IsRook)
             {
-                if ((Magic.GetRookAttacks(square1, 0) & 1ul << square2) != 0)
-                    return Magic.GetRookAttackMask(square1, 1ul<<square2) & Magic.GetRookAttackMask(square2, 1ul<<square1);
+                // Check if the target is on the rook's attack line
+                if ((Magic.GetRookAttacks(square1, 0) & (1ul << square2)) != 0)
+                    return Magic.GetRookAttackMask(square1, 1ul << square2)
+                         & Magic.GetRookAttackMask(square2, 1ul << square1);
                 return 0;
             }
-            if ((Magic.GetBishopAttacks(square1, 0) & 1ul << square2) != 0)
-                return Magic.GetBishopAttackMask(square1, 1ul << square2) & Magic.GetBishopAttackMask(square2, 1ul<<square1);
-            return 0;
-        }
 
-        public static ulong GetPinAttackTunnel(int square1, int square2, bool IsRook)
-        {
+            // Bishop case
+            if ((Magic.GetBishopAttacks(square1, 0) & (1ul << square2)) != 0)
+                return Magic.GetBishopAttackMask(square1, 1ul << square2)
+                     & Magic.GetBishopAttackMask(square2, 1ul << square1);
 
-            if (IsRook)
-            {
-                if ((Magic.GetRookAttacks(square1, 0) & 1ul << square2) != 0)
-                    return Magic.GetRookAttacks(square1, 0) & Magic.GetRookAttacks(square2, 0);
-                return 0;
-            }
-            if ((Magic.GetBishopAttacks(square1, 0) & 1ul << square2) != 0)
-                return Magic.GetBishopAttacks(square1, 0) & Magic.GetBishopAttacks(square2, 0);
-            return 0;
+            return 0; // Not aligned
         }
     }
 }

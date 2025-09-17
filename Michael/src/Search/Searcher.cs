@@ -36,7 +36,7 @@ namespace Michael.src.Search
         {
             evaluator = new Evaluator();
             moveOrderer = new MoveOrderer();
-            bestMove = bestMoveThisIteration = Move.NullMove();
+            bestMove = bestMoveThisIteration = Move.NullMove;
             board = MatchManager.board;
             stopwatch = new Stopwatch();
         }
@@ -50,7 +50,7 @@ namespace Michael.src.Search
         {
             board = MatchManager.board;
             searchCancelled = false;
-            bestMove = bestMoveThisIteration = Move.NullMove();
+            bestMove = bestMoveThisIteration = Move.NullMove;
             StartIlliterateDeepeningSearch();
 
             OnSearchComplete?.Invoke(bestMove);
@@ -82,7 +82,7 @@ namespace Michael.src.Search
             }
 
             // If we never found a root move, try to recover from TT (optional)
-            if (bestMove == Move.NullMove())
+            if (bestMove.Equals(Move.NullMove))
             {
                 ulong key = Zobrist.ComputeHash(board);
                 if (TranspositionTable.TryGetValue(key, out TTEntry entry))
@@ -124,9 +124,9 @@ namespace Michael.src.Search
                 return Quiesce(alpha, beta);
 
             int bestScore = NegativeInfinity;
-            Move bestMoveAtNode = Move.NullMove(); // local best move for this node
+            Move bestMoveAtNode = Move.NullMove; // local best move for this node
             Move[] legalMoves = board.GetLegalMoves();
-            moveOrderer.OrderMoves(ref legalMoves, Depth == depth ? bestMove : Move.NullMove(), board, Depth - depth);
+            moveOrderer.OrderMoves(ref legalMoves, Depth == depth ? bestMove : Move.NullMove, board, Depth - depth);
 
             NodeType nodeType = NodeType.Upperbound;
 
@@ -232,9 +232,9 @@ namespace Michael.src.Search
                 alpha = bestValue;
 
             Move[] captures = board.GetLegalMoves(true);
-            moveOrderer.OrderMoves(ref captures, Move.NullMove(), board, 0);
+            moveOrderer.OrderMoves(ref captures, Move.NullMove, board, 0);
 
-            Move bestMove = Move.NullMove();
+            Move bestMove = Move.NullMove;
             NodeType nodeType = NodeType.Upperbound;
 
             for (int i = 0; i < captures.Length; i++)

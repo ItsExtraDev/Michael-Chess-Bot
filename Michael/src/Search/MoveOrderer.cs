@@ -11,11 +11,11 @@
         private int[] piecesValues =
         {
             0, //NONE
-            1000, //PAWN
-            3200, //KNIGHT
-            3500, //BISHOP
-            5000, //ROOK
-            9000, //QUEEN
+            10, //PAWN
+            32, //KNIGHT
+            35, //BISHOP
+            50, //ROOK
+            90, //QUEEN
             0, //KING (Since he can't be captured, this value is meaningless)
         };
 
@@ -117,7 +117,7 @@
                 int attackingPieceValue = piecesValues[Piece.PieceType(board.Squares[move.StartingSquare])];
                 int VictimPieceValue = piecesValues[Piece.PieceType(board.Squares[move.TargetSquare])];
 
-                score += VictimPieceValue - attackingPieceValue;
+                score += (VictimPieceValue * 100) - attackingPieceValue;
             }
 
             return score;

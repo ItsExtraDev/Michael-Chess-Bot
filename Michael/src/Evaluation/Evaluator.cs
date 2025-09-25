@@ -4,25 +4,11 @@ namespace Michael.src.Evaluation
 {
     public class Evaluator
     {
-        //Variable declarations
+
+        // <- Variable Definetions -> //
         private Board board;
-        private int materialCount;
-        private int evaluation;
-        private int colorBias;
-        private ulong Bitboard;
-        private int pieceValue;
-        private int pieceCount;
 
-        private int[] piecesValues =
-        {
-            100, //Pawn
-            320, //Knight
-            350, //Bishop
-            500, //Rook
-            900 //Queen
-        };
-
-        //Refrances
+        // Refrances
         readonly Activity activity;
 
         public Evaluator()
@@ -31,39 +17,47 @@ namespace Michael.src.Evaluation
             activity = new Activity();
         }
 
+        static readonly int[] PieceValues =
+        {
+            100, //Pawn
+            320, //Knight
+            350, //Bishop
+            500, //Rook
+            900, //Queen
+        };
+
+
         public int Evaluate()
         {
             board = MatchManager.board;
 
-            evaluation = 0;
+            int eval = 0;
 
-            evaluation += CountMaterial(Piece.White);
-            evaluation -= CountMaterial(Piece.Black);
+            eval += CountMaterial(true);
+            eval -= CountMaterial(false);
 
-            evaluation += activity.EvaluatePieceSquares();
+            eval += activity.EvaluatePieceSquares(board);
 
-            colorBias = board.IsWhiteToMove ? 1 : -1;
-            return evaluation * colorBias;
+            int colorBias = board.IsWhiteToMove ? 1 : -1;
+            return eval * colorBias;
         }
 
-        private int CountMaterial(int color)
+        public int CountMaterial(bool isWhite)
         {
-            int materialCount = 0;
+            int material = 0;
 
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; i < 5; i++)
             {
-                //Skip kings
-                if (i == 5)
-                    continue;
 
-                Bitboard = board.PiecesBitboards[(6 * color) + i];
+                ulong PieceBitboard = board.PiecesBitboards[isWhite ? i : 6+i];
+                int numPieces = BitOperations.PopCount(PieceBitboard);
+                int pieceValue = PieceValues[i];
 
-                pieceCount = BitOperations.PopCount(Bitboard);
-                pieceValue = piecesValues[i];
+                material += numPieces * pieceValue;
 
-                materialCount += pieceValue * pieceCount;// * (color == 0 ? 1 : -1);
             }
-            return materialCount;
+
+            return material;
         }
     }
 }

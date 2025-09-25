@@ -29,6 +29,44 @@ namespace Michael.src.Helpers
         public const ulong FileG = 0x4040404040404040;
         public const ulong FileH = 0x8080808080808080;
 
+        // 8 files, one mask each
+        public static readonly ulong[] FileMasks = new ulong[8];
+
+        // 8 files, adjacent file mask each
+        public static readonly ulong[] AdjacentFileMasks = new ulong[8];
+
+        // 64 squares x 2 colors: passed-pawn masks precomputed
+        public static readonly ulong[,] PassedPawnMasks = new ulong[64, 2];
+
+        static BitboardHelper()
+        {
+            // Fill file masks
+            for (int f = 0; f < 8; f++)
+            {
+                FileMasks[f] = 0x0101010101010101UL << f;
+                ulong adj = 0;
+                if (f > 0) adj |= 0x0101010101010101UL << (f - 1);
+                if (f < 7) adj |= 0x0101010101010101UL << (f + 1);
+                AdjacentFileMasks[f] = adj;
+            }
+
+            // Fill passed-pawn masks
+            for (int sq = 0; sq < 64; sq++)
+            {
+                int file = sq % 8;
+                int rank = sq / 8;
+
+                ulong filesMask = FileMasks[file] | AdjacentFileMasks[file];
+
+                // White
+                ulong forwardWhite = rank == 7 ? 0UL : ~((1UL << ((rank + 1) * 8)) - 1);
+                PassedPawnMasks[sq, 0] = filesMask & forwardWhite;
+
+                // Black
+                ulong forwardBlack = rank == 0 ? 0UL : (1UL << (rank * 8)) - 1;
+                PassedPawnMasks[sq, 1] = filesMask & forwardBlack;
+            }
+        }
 
 
         /// <summary>
@@ -58,6 +96,8 @@ namespace Michael.src.Helpers
         public static bool IsBitSet(ulong Bitboard, int bitIndex)
             => (Bitboard & 1UL << bitIndex) != 0;
 
+
+        private static int LSB;
         /// <summary>
         /// Returns and toggles off the least significant bit (LSB) of the bitboard.
         /// </summary>
@@ -65,7 +105,7 @@ namespace Michael.src.Helpers
         /// <returns>the LSB</returns>
         public static int PopLSB(ref ulong Bitboard)
         {
-            int LSB = BitOperations.TrailingZeroCount(Bitboard);
+            LSB = BitOperations.TrailingZeroCount(Bitboard);
             ToggleBit(ref Bitboard, LSB);
 
             return LSB;
@@ -131,43 +171,11 @@ namespace Michael.src.Helpers
             }
         }
 
-        public static ulong GetFileMask(int file) 
-            => ShiftBitboard(FileA, file);
+        public static ulong GetFileMask(int file) => FileMasks[file];
 
-        public static ulong GetAdjecentFilesBitboard(int file)
-        {
-            ulong mask = 0;
-            if (file > 0) mask |= GetFileMask(file - 1);
-            if (file < 7) mask |= GetFileMask(file + 1);
-            return mask;
-        }
+        public static ulong GetAdjacentFilesMask(int file) => AdjacentFileMasks[file];
 
-
-        public static ulong GetPassedPawnMask(int square, int color)
-        {
-            int file = BoardHelper.File(square);
-            int rank = BoardHelper.Rank(square);
-
-            ulong filesMask = GetFileMask(file) | GetAdjecentFilesBitboard(file);
-            ulong forwardMask;
-
-            if (color == 0) // White
-            {
-                forwardMask = ~((1UL << ((rank + 1) * 8)) - 1); // Clear all ranks ≤ current
-
-                if (rank == 7)
-                    forwardMask = ulong.MinValue;
-            }
-            else // Black
-            {
-                forwardMask = (1UL << (rank * 8)) - 1; // Keep ranks below current
-
-                if (rank == 0)
-                    forwardMask = ulong.MinValue;
-            }
-
-            return filesMask & forwardMask;
-        }
+        public static ulong GetPassedPawnMask(int square, int color) => PassedPawnMasks[square, color];
 
         /// <summary>
         /// Returns a bitboard mask of all squares behind the given square (on the same file),

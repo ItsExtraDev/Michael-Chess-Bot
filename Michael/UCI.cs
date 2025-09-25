@@ -22,7 +22,7 @@ public class UCI
     public UCI()
     {
         player = new Bot();
-        writer = new LogWriter(FileType.UCI, true);
+        writer = new LogWriter(FileType.UCI, false);
 
         // Subscribe to the Bot's move-chosen event to send moves to the GUI.
         player.OnMoveChosen += OnMoveChosen;

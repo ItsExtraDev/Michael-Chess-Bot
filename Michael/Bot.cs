@@ -19,7 +19,7 @@ namespace Michael
         /// <summary>
         /// Maximum time to think per move in milliseconds.
         /// </summary>
-        public int MaxTimePerMoveInMS = 10000;
+        public int MaxTimePerMoveInMS = 100;
 
         // --- State variables ---
 

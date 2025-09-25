@@ -32,6 +32,7 @@ namespace Michael.src.MoveGen
         public static ulong[] KnightMoves = new ulong[64];
         public static ulong[] KingMoves = new ulong[64];
 
+        private static bool cachedInit;
         public static ulong enemyAttacks; //Stores the enemy attacks for the current position, used to check for legal moves.
         private static int friendlyKingSquare; //Stores the square of the friendly king, used to check for legal moves.
         private static bool IsInDoubleCheck;
@@ -43,6 +44,8 @@ namespace Michael.src.MoveGen
         private static ulong OrthogonalPinMovementMask;
         //If we are generating moves for a qsearch, the only legal moves are captures and king moves.
         private static ulong movementMask;
+
+        private static ulong lastHash;
 
         public static bool InCheck(Board boardInstance)
         {
@@ -56,6 +59,7 @@ namespace Michael.src.MoveGen
         {
             board = boardInstance; //Set the board to the current board instance.
             Init(); //Initialize all the necessary variables for move generation.
+            CurrentMoveIndex = 0;
 
             // In captures-only (qsearch):
             // - If NOT in check: allow only true captures (opp pieces + EP square)
@@ -176,8 +180,8 @@ namespace Michael.src.MoveGen
                     }
                     continue;
                 }
-                else if (board.EnPassantSquare == targetSquare)
-                     legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
+               else if (board.EnPassantSquare == targetSquare)
+                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
                 else legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
             while (CaptureRight != 0)
@@ -197,7 +201,7 @@ namespace Michael.src.MoveGen
                     continue;
                 }
                  else if (board.EnPassantSquare == targetSquare)
-                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
+                   legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
                  else legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
         }
@@ -344,7 +348,13 @@ namespace Michael.src.MoveGen
 
         private static void Init()
         {
-            CurrentMoveIndex = 0;
+            if (board.CurrentHash == lastHash)
+            {
+                // nothing changed, keep previous precomputed masks
+                return;
+            }
+            lastHash = board.CurrentHash;
+
             enemyBitboardAndEmptySquares = ~board.ColoredBitboards[board.ColorToMove];
             IsInCheck = false;
             IsInDoubleCheck = false;

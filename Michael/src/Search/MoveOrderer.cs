@@ -1,94 +1,126 @@
-﻿using Michael.src.Helpers;
-
-namespace Michael.src.Search
+﻿namespace Michael.src.Search
 {
     public class MoveOrderer
     {
-        // Killer moves [depth, id]
-        private readonly Move[,] KillerMoves = new Move[255, 2];
-
-        // History move [Piece, square]
-        private readonly int[,] HistoryMove = new int[12, 64];
-
         private Board board;
+        private Move pvMove;
 
-        public MoveOrderer()
+        private Move[,] killers = new Move[2,256];
+        private int[,,] history = new int[12, 64, 64];
+
+        private int[] piecesValues =
         {
-            // initialise killers to NullMove if Move is a struct
-            for (int i = 0; i < KillerMoves.GetLength(0); i++)
+            0, //NONE
+            1000, //PAWN
+            3200, //KNIGHT
+            3500, //BISHOP
+            5000, //ROOK
+            9000, //QUEEN
+            0, //KING (Since he can't be captured, this value is meaningless)
+        };
+
+        public void ResetKillers()
+        {
+            Array.Clear(killers, 0, killers.Length);
+            Array.Clear(history, 0, history.Length);
+        }
+
+        public void AddKiller(Move move, int plyFromRoot)
+        {
+            board = MatchManager.board;
+
+            //Not a capture
+            if (board.Squares[move.TargetSquare] == Piece.None)
             {
-                KillerMoves[i, 0] = Move.NullMove;
-                KillerMoves[i, 1] = Move.NullMove;
+                killers[1, plyFromRoot] = killers[0, plyFromRoot];
+                killers[0, plyFromRoot] = move;
             }
+        }
+        public void AddHistory(Move move, int movingPieceType, int depth)
+        {
+            board = MatchManager.board;
+
+            //Not a capture
+            if (board.Squares[move.TargetSquare] == Piece.None)
+            {
+                history[movingPieceType, move.StartingSquare, move.TargetSquare] += 50 * depth;
+            }
+        }
+
+        public Move[] OrderMoves(Move[] legalMoves, Move pvMove, int plyFromRoot)
+        {
+            board = MatchManager.board;
+            this.pvMove = pvMove;
+
+            // Build score array
+            int[] scores = new int[legalMoves.Length];
+            for (int i = 0; i < legalMoves.Length; i++)
+                scores[i] = Score(legalMoves[i], plyFromRoot);
+
+            // Sort both arrays by quicksort descending
+            QuickSort(legalMoves, scores, 0, legalMoves.Length - 1);
+
+            return legalMoves;
         }
 
         /// <summary>
-        /// Orders moves in place. Pass in the current board and plyFromRoot.
+        /// We aim to order the moves millions of times per second, and array.sort is kinda slow.
+        /// instead, use the fastest sorting algorithm which is quicksort 
+        /// (First time I actually had to use one outside of leetcode)
         /// </summary>
-        public void OrderMoves(ref Move[] legalMoves, Move pvMove, Board b, int plyFromRoot = 0)
+        private void QuickSort(Move[] moves, int[] scores, int left, int right)
         {
-            board = b;
-            Array.Sort(legalMoves, (m1, m2) =>
+            if (left >= right) return;
+
+            int pivotScore = scores[(left + right) / 2];
+            int i = left, j = right;
+
+            while (i <= j)
             {
-                int s1 = ScoreMove(m1, pvMove, plyFromRoot);
-                int s2 = ScoreMove(m2, pvMove, plyFromRoot);
-                return s2.CompareTo(s1); // descending
-            });
-        }
+                // For descending, reverse the comparisons:
+                while (scores[i] > pivotScore) i++;
+                while (scores[j] < pivotScore) j--;
 
-        private int ScoreMove(Move move, Move pvMove, int plyFromRoot)
-        {
-            int score = 0;
-
-            // principal variation move first
-            if (!pvMove.IsNull() && move.Equals(pvMove))
-                score += 10000;
-
-            // MVV/LVA style capture scoring – relies on Move holding victim/attacker info
-
-            board.MakeMove(move);
-            if (GameState.IsCapture(board.CurrentGameState))
-            {
-                int victim = Piece.PieceType(GameState.CapturedPiece(board.CurrentGameState));
-                int attacker = Piece.PieceType(GameState.MovingPiece(board.CurrentGameState));
-                score += (victim * 100) - attacker;
-            }
-
-            // Promotion scoring
-            if (move.IsPromotion())
-            {
-                switch (move.MoveFlag)
+                if (i <= j)
                 {
-                    case Piece.Queen: score += 900; break;
-                    case Piece.Rook: score += 500; break;
-                    case Piece.Bishop: score += 325; break;
-                    case Piece.Knight: score += 300; break;
+                    // swap scores
+                    (scores[j], scores[i]) = (scores[i], scores[j]);
+
+                    // swap moves
+                    (moves[j], moves[i]) = (moves[i], moves[j]);
+                    i++;
+                    j--;
                 }
             }
 
-            // Killer moves only for quiet moves
-            if (!GameState.IsCapture(board.CurrentGameState))
-            {
-                if (!KillerMoves[plyFromRoot, 0].IsNull() && KillerMoves[plyFromRoot, 0].Equals(move))
-                    score += 100;
-                else if (!KillerMoves[plyFromRoot, 1].IsNull() && KillerMoves[plyFromRoot, 1].Equals(move))
-                    score += 80;
-
-                // later: history heuristic
-                //score += HistoryMove[movingPiece, move.TargetSquare];
-            }
-            board.UndoMove(move);
-
-            return score;
+            if (left < j) QuickSort(moves, scores, left, j);
+            if (i < right) QuickSort(moves, scores, i, right);
         }
 
-        public void AddKillerMove(Move move, int plyFromRoot)
+        private int Score(Move move, int plyFromRoot)
         {
-            if (plyFromRoot < 0 || plyFromRoot >= KillerMoves.GetLength(0)) return;
+            if (move.Equals(pvMove))
+                return 10_000;
 
-            if (KillerMoves[plyFromRoot, 0].Equals(move)) return; // already present
-            KillerMoves[plyFromRoot, 1] = KillerMoves[plyFromRoot, 0];
-            KillerMoves[plyFromRoot, 0] = move;
+            if (move.Equals(killers[0,plyFromRoot]))
+                return 750;
+            if (move.Equals(killers[1, plyFromRoot]))
+                return 500;
+
+            int pieceType = Piece.PieceType(board.Squares[move.StartingSquare]);
+
+            int score = history[pieceType, move.StartingSquare, move.TargetSquare];
+
+            //If the move is a capture, rank it by material diff.
+            if (board.Squares[move.TargetSquare] != Piece.None)
+            {
+                int attackingPieceValue = piecesValues[Piece.PieceType(board.Squares[move.StartingSquare])];
+                int VictimPieceValue = piecesValues[Piece.PieceType(board.Squares[move.TargetSquare])];
+
+                score += VictimPieceValue - attackingPieceValue;
+            }
+
+            return score;
         }
     }
 }

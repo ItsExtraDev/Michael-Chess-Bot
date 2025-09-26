@@ -22,7 +22,7 @@ public readonly struct Move
     private const int StartingSquareShift = 10;  // Starting square bits start at 10
 
     // The entire move stored in one integer
-    private readonly int RawMove;
+    public readonly int RawMove;
 
     // --- Properties to decode the move ---
     /// <summary>Starting square index (0–63)</summary>

@@ -43,7 +43,7 @@
             //Not a capture
             if (board.Squares[move.TargetSquare] == Piece.None)
             {
-                history[movingPieceType, move.StartingSquare, move.TargetSquare] += 50 * depth;
+                history[movingPieceType, move.StartingSquare, move.TargetSquare] += depth * depth;
             }
         }
 

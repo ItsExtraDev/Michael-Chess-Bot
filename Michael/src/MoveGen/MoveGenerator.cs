@@ -74,7 +74,7 @@ namespace Michael.src.MoveGen
                 else
                 {
                     // Not in check: only captures
-                    ulong epMask = board.EnPassantSquare != 0 ? (1ul << board.EnPassantSquare) : 0ul;
+                    ulong epMask = board.EnPassantSquare != -1 ? (1ul << board.EnPassantSquare) : 0ul;
                     movementMask = board.ColoredBitboards[board.ColorToMove ^ 1] | epMask;
                 }
             }
@@ -180,7 +180,7 @@ namespace Michael.src.MoveGen
                     }
                     continue;
                 }
-               else if (board.EnPassantSquare == targetSquare)
+               else if (board.EnPassantSquare == targetSquare && BoardHelper.Rank(targetSquare) > 0 && BoardHelper.Rank(targetSquare) < 7)
                     legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
                 else legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
@@ -200,7 +200,7 @@ namespace Michael.src.MoveGen
                     }
                     continue;
                 }
-                 else if (board.EnPassantSquare == targetSquare)
+                 else if (board.EnPassantSquare == targetSquare && BoardHelper.Rank(targetSquare) > 0 && BoardHelper.Rank(targetSquare) < 7)
                    legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare, MoveFlag.EnPassant);
                  else legalMoves[CurrentMoveIndex++] = new Move(startingSquare, targetSquare);
             }
@@ -233,6 +233,8 @@ namespace Michael.src.MoveGen
         /// <param name="legalMoves">the array to return the legal king moves</param>
         public static void GenerateLegalKingMoves(ref Span<Move> legalMoves)
         {
+            if (friendlyKingSquare == 64)
+                return;
 
             ulong kingAttacks = KingMoves[friendlyKingSquare] & enemyBitboardAndEmptySquares & ~enemyAttacks; // Get the precomputed moves for the king from that square.
             if (!IsInCheck)
@@ -250,27 +252,39 @@ namespace Michael.src.MoveGen
             int ourCastlingMask = board.ColorToMove == Piece.White ? 0b0011 : 0b1100;
             if (movementMask == ulong.MaxValue && !IsInCheck && (board.CasltingRight & ourCastlingMask) != 0 && BoardHelper.File(friendlyKingSquare) == 4)
             {
-                //Generate castling moves for the king.
-                if ((GameState.CanWhiteCastleShort(board.CurrentGameState) && board.ColorToMove == Piece.White) ||
-                    (GameState.CanBlackCastleShort(board.CurrentGameState) && board.ColorToMove == Piece.Black))
+                if (board.IsWhiteToMove && BoardHelper.Rank(friendlyKingSquare) == 0 ||
+                    !board.IsWhiteToMove && BoardHelper.Rank(friendlyKingSquare) == 7)
                 {
-                    //King side castling
-                    if ((board.Squares[friendlyKingSquare + 1] == Piece.None) && (board.Squares[friendlyKingSquare + 2] == Piece.None))
+                    if (board.ColorToMove == Piece.White && Piece.PieceType(board.Squares[7]) == Piece.Rook ||
+                    board.ColorToMove == Piece.Black && Piece.PieceType(board.Squares[63]) == Piece.Rook)
                     {
-                        if ((enemyAttacks & 1ul << friendlyKingSquare + 1) == 0 && (enemyAttacks & 1ul << friendlyKingSquare + 2) == 0)
+                        //Generate castling moves for the king.
+                        if ((GameState.CanWhiteCastleShort(board.CurrentGameState) && board.ColorToMove == Piece.White) ||
+                            (GameState.CanBlackCastleShort(board.CurrentGameState) && board.ColorToMove == Piece.Black))
                         {
-                            legalMoves[CurrentMoveIndex++] = new Move(friendlyKingSquare, friendlyKingSquare + 2, MoveFlag.CastleShort);
+                            //King side castling
+                            if ((board.Squares[friendlyKingSquare + 1] == Piece.None) && (board.Squares[friendlyKingSquare + 2] == Piece.None))
+                            {
+                                if ((enemyAttacks & 1ul << friendlyKingSquare + 1) == 0 && (enemyAttacks & 1ul << friendlyKingSquare + 2) == 0)
+                                {
+                                    legalMoves[CurrentMoveIndex++] = new Move(friendlyKingSquare, friendlyKingSquare + 2, MoveFlag.CastleShort);
+                                }
+                            }
                         }
                     }
-                }
-                if ((GameState.CanWhiteCastleLong(board.CurrentGameState) && board.ColorToMove == Piece.White) ||
-                    (GameState.CanBlackCastleLong(board.CurrentGameState) && board.ColorToMove == Piece.Black))
-                {
-                    //Queen side castling
-                    if ((board.Squares[friendlyKingSquare - 1] == Piece.None) && (board.Squares[friendlyKingSquare - 2] == Piece.None) && (board.Squares[friendlyKingSquare - 3] == Piece.None) &&
-                            (enemyAttacks & 1ul << friendlyKingSquare - 1) == 0 && (enemyAttacks & 1ul << friendlyKingSquare - 2) == 0)
+                    if (board.ColorToMove == Piece.White && Piece.PieceType(board.Squares[0]) == Piece.Rook ||
+                        board.ColorToMove == Piece.Black && Piece.PieceType(board.Squares[56]) == Piece.Rook)
                     {
-                        legalMoves[CurrentMoveIndex++] = new Move(friendlyKingSquare, friendlyKingSquare - 2, MoveFlag.CastleLong);
+                        if ((GameState.CanWhiteCastleLong(board.CurrentGameState) && board.ColorToMove == Piece.White) ||
+                            (GameState.CanBlackCastleLong(board.CurrentGameState) && board.ColorToMove == Piece.Black))
+                        {
+                            //Queen side castling
+                            if ((board.Squares[friendlyKingSquare - 1] == Piece.None) && (board.Squares[friendlyKingSquare - 2] == Piece.None) && (board.Squares[friendlyKingSquare - 3] == Piece.None) &&
+                                    (enemyAttacks & 1ul << friendlyKingSquare - 1) == 0 && (enemyAttacks & 1ul << friendlyKingSquare - 2) == 0)
+                            {
+                                legalMoves[CurrentMoveIndex++] = new Move(friendlyKingSquare, friendlyKingSquare - 2, MoveFlag.CastleLong);
+                            }
+                        }
                     }
                 }
             }
@@ -359,7 +373,7 @@ namespace Michael.src.MoveGen
             IsInCheck = false;
             IsInDoubleCheck = false;
             ulong kingBB = board.PiecesBitboards[BitboardHelper.GetBitboardIndex(Piece.King, board.ColorToMove)];
-            friendlyKingSquare = BitOperations.TrailingZeroCount(kingBB);
+            friendlyKingSquare = Math.Min(63, BitOperations.TrailingZeroCount(kingBB));
             checkRayMask = 0;
             DiagonalPinMask = 0;
             DiagonalPinMovementMask = 0;

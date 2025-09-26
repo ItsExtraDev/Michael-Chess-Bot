@@ -73,7 +73,7 @@ public static class MatchManager
             // Handle special move types first
 
             // En passant
-            if (board.EnPassantSquare == move.TargetSquare && board.Squares[move.StartingSquare] == Piece.Pawn)
+            if (board.EnPassantSquare == move.TargetSquare && BoardHelper.Rank(move.TargetSquare) > 0 && BoardHelper.Rank(move.TargetSquare) < 7 && Piece.PieceType(board.Squares[move.StartingSquare]) == Piece.Pawn)
             {
                 board.MakeMove(new Move(move.StartingSquare, move.TargetSquare, MoveFlag.EnPassant));
                 continue;

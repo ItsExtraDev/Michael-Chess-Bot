@@ -10,11 +10,13 @@ namespace Michael.src.Evaluation
 
         // Refrances
         readonly Activity activity;
+        readonly PawnStructure pawnStructure;
 
         public Evaluator()
         {
             board = MatchManager.board;
             activity = new Activity();
+            pawnStructure = new PawnStructure();
         }
 
         static readonly int[] PieceValues =
@@ -37,6 +39,9 @@ namespace Michael.src.Evaluation
             eval -= CountMaterial(false);
 
             eval += activity.EvaluatePieceSquares(board);
+
+            eval += pawnStructure.EvaluatePawnStructure(true);
+            eval -= pawnStructure.EvaluatePawnStructure(false);
 
             int colorBias = board.IsWhiteToMove ? 1 : -1;
             return eval * colorBias;

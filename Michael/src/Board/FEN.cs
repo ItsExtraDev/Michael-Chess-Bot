@@ -37,6 +37,7 @@ namespace Michael.src
             Array.Clear(board.ColoredBitboards);
             Array.Clear(board.Squares);
             board.ColoredBitboards[2] = ulong.MaxValue; // all squares empty
+            board.CasltingRight = 0;
         }
 
         /// <summary>
@@ -96,6 +97,7 @@ namespace Michael.src
                 if (castlingRightsString.Contains('k')) board.CasltingRight |= CastlingRights.BlackShort;
                 if (castlingRightsString.Contains('q')) board.CasltingRight |= CastlingRights.BlackLong;
             }
+
 
             // En passant target square
             if (fenParts[3] != "-")

@@ -17,8 +17,8 @@ namespace Michael.src.Search
         private int bestEvalThisIteration;
         private bool searchCancelled;
         private ulong nodes;
-        private const int PositiveInfinity = 999_999;
-        private const int NegativeInfinity = -999_999;
+        private const int PositiveInfinity = 1_000_000;
+        private const int NegativeInfinity = -1_000_000;
         private Stopwatch searchTimer = new Stopwatch();
 
         //Refrances
@@ -104,7 +104,7 @@ namespace Michael.src.Search
                 return 0;
             }
 
-            if (depth == 0)
+            if (depth <= 0)
             {
                 return Quiesce(alpha, beta);
             }
@@ -126,7 +126,7 @@ namespace Michael.src.Search
                 }
             }
 
-            legalMoves = moveOrderer.OrderMoves(legalMoves, Depth == depth ? bestMove : ttMove, plyFromRoot);
+            legalMoves = moveOrderer.OrderMoves(legalMoves, depth == Depth ? bestMove : ttMove, plyFromRoot);
 
             Move bestMoveAtNode = Move.NullMove;
             int bestScore = NegativeInfinity;
@@ -143,7 +143,28 @@ namespace Michael.src.Search
                     extensions = 1;
                 }
                 board.MakeMove(move);
-                int score = -Search(depth - 1 + extensions, -beta, -alpha, plyFromRoot + 1, numExt + extensions);
+
+                int score;
+                if (depth >= 3 &&
+                moveIndex >= 3 &&                  // not first few moves
+                !board.IsInCheck() &&              // don’t reduce when in check
+                board.Squares[move.TargetSquare] == Piece.None       &&         // don’t reduce captures/promotions
+                !move.IsPromotion())
+                {
+                    int reduction = 1 + (moveIndex / 6) + (depth / 6);
+                    score = -Search(depth - 1 - reduction, -beta, -alpha, plyFromRoot + 1, numExt + extensions);
+
+                    //Move looks promising - do a full re-search
+                    if (score > alpha)
+                    {
+                        score = -Search(depth - 1 + extensions, -beta, -alpha, plyFromRoot + 1, numExt + extensions);
+                    }
+                }
+                //Perfrom a full search
+                else
+                {
+                    score = -Search(depth - 1 + extensions, -beta, -alpha, plyFromRoot + 1, numExt + extensions);
+                }
                 board.UndoMove(move);
 
                 if (searchCancelled && Depth > 1)
@@ -177,7 +198,7 @@ namespace Michael.src.Search
                 if (alpha >= beta)
                 {
                     moveOrderer.AddKiller(move, plyFromRoot);
-                   // moveOrderer.AddHistory(move, Piece.PieceType(board.Squares[move.StartingSquare]), depth);
+                    moveOrderer.AddHistory(move, Piece.PieceType(board.Squares[move.StartingSquare]), depth);
                     break;
                 }
             }
@@ -198,7 +219,6 @@ namespace Michael.src.Search
                 return 0;
             }
 
-            ulong key = board.CurrentHash;
             Move ttMove = Move.NullMove;
 
             if (TT.TryGetEntry(TranspositionTable, board.CurrentHash, out var entry))
@@ -226,9 +246,9 @@ namespace Michael.src.Search
                 alpha = bestValue;
 
             Move[] captures = board.GetLegalMoves(true);
-            captures = moveOrderer.OrderMoves(captures, Move.NullMove, 255);
+            captures = moveOrderer.OrderMoves(captures, ttMove, 255);
 
-            Move bestMove = Move.NullMove;
+            Move bestMoveThisNode = Move.NullMove;
             NodeType nodeType = NodeType.Alpha;
 
             for (int i = 0; i < captures.Length; i++)
@@ -247,14 +267,14 @@ namespace Michael.src.Search
                 {
                     nodeType = NodeType.Beta;
                     bestValue = score;
-                    bestMove = move;
+                    bestMoveThisNode = move;
                     break;
                 }
 
                 if (score > bestValue)
                 {
                     bestValue = score;
-                    bestMove = move;
+                    bestMoveThisNode = move;
                 }
 
                 if (score > alpha)
@@ -264,7 +284,7 @@ namespace Michael.src.Search
                 }
             }
 
-            TT.StoreEntry(ref TranspositionTable, board.CurrentHash, 0, bestValue, nodeType, bestMove);
+            TT.StoreEntry(ref TranspositionTable, board.CurrentHash, 0, bestValue, nodeType, bestMoveThisNode);
 
             return bestValue;
         }

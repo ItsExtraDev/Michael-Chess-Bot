@@ -115,15 +115,11 @@ public class Activity
     };
     #endregion
 
-    private static readonly int[] PhaseValues = { 0, 1, 1, 2, 4, 0 };
     private static readonly int[] Mirror = Enumerable.Range(0, 64)
         .Select(sq => 63 - sq).ToArray();
 
-    public int EvaluatePieceSquares(Board b)
+    public int EvaluatePieceSquaresMG(Board b)
     {
-        int phase = CalculatePhase(b);
-        int w = 24 - phase;
-        int e = phase;
         int eval = 0;
 
         for (int i = 0; i < 12; i++)
@@ -138,31 +134,37 @@ public class Activity
                 int idx = isWhite ? Mirror[square] : square;
 
                 int mgScore = MgPieceSquareTables[pieceType][idx];
-                int egScore = EgPieceSquareTables[pieceType][idx];
-                int blended = (mgScore * w + egScore * e) / 24;
 
                 bitboard &= bitboard - 1;
-                eval += isWhite ? blended : -blended;
+                eval += isWhite ? mgScore : -mgScore;
             }
         }
 
         return eval;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private int CalculatePhase(Board b)
+    public int EvaluatePieceSquaresEG(Board b)
     {
-        int phase = 24;
+        int eval = 0;
+
         for (int i = 0; i < 12; i++)
         {
-            ulong bb = b.PiecesBitboards[i];
+            ulong bitboard = b.PiecesBitboards[i];
             int pieceType = i % 6;
-            while (bb != 0)
+            bool isWhite = i < 6;
+
+            while (bitboard != 0)
             {
-                phase -= PhaseValues[pieceType];
-                bb &= bb - 1;
+                int square = BitOperations.TrailingZeroCount(bitboard);
+                int idx = isWhite ? Mirror[square] : square;
+
+                int egScore = EgPieceSquareTables[pieceType][idx];
+
+                bitboard &= bitboard - 1;
+                eval += isWhite ? egScore : -egScore;
             }
         }
-        return Math.Clamp(phase, 0, 24);
+
+        return eval;
     }
 }

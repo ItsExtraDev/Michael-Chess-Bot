@@ -1,4 +1,6 @@
-﻿namespace Michael.src.Search
+﻿using Michael.src.Helpers;
+
+namespace Michael.src.Search
 {
     public class MoveOrderer
     {
@@ -118,6 +120,11 @@
                 int VictimPieceValue = piecesValues[Piece.PieceType(board.Squares[move.TargetSquare])];
 
                 score += (VictimPieceValue * 100) - attackingPieceValue;
+            }
+
+            if (score > 10_000)
+            {
+                score = 9999;
             }
 
             return score;

@@ -83,9 +83,38 @@ namespace Michael.src
 
         public void MakeNullMove()
         {
-            ColorToMove ^= 1;
+            // Save current hash so UndoNullMove can restore it
             LastHash = CurrentHash;
+
+            // Push current game state (includes en-passant & castling) so we can restore
+            GameStateHistory.Add(CurrentGameState);
+
+            // Push halfmove clock so we can restore on undo
+            HalfmoveClockHistory.Add(HalfmoveClock);
+
+            // Push current hash to hashHistory (consistent with MakeMove)
+            hashHistory.Add(CurrentHash);
+
+            // Null move clears en-passant square
+            EnPassantSquare = 0;
+
+            // Increase halfmove clock (no capture/pawn move happened)
+            HalfmoveClock++;
+
+            // Advance ply count
+            plyCount++;
+
+            // Flip side to move
+            ColorToMove ^= 1;
+
+            // Invalidate cached in-check result
+            hasCachedCheck = false;
+
+            // Recompute game-state and zobrist hash for the new side-to-move
+            CurrentGameState = GameState.MakeGameState(Piece.None, Piece.None, EnPassantSquare, CasltingRight);
             CurrentHash = Zobrist.ComputeHash(this);
+
+            // Update repetition counts like MakeMove does
             if (!repetitionCounts.ContainsKey(CurrentHash))
                 repetitionCounts[CurrentHash] = 1;
             else
@@ -94,162 +123,215 @@ namespace Michael.src
 
         public void UndoNullMove()
         {
-            ColorToMove ^= 1;
+            // Decrement repetition count for current hash (same pattern as UndoMove)
             if (repetitionCounts.ContainsKey(CurrentHash))
             {
                 repetitionCounts[CurrentHash]--;
                 if (repetitionCounts[CurrentHash] == 0)
                     repetitionCounts.Remove(CurrentHash);
             }
-            CurrentHash = LastHash;
+
+            // Flip side back
+            ColorToMove ^= 1;
+
+            // Restore ply/halfmove clock
+            plyCount--;
+            if (HalfmoveClockHistory.Count > 0)
+            {
+                HalfmoveClock = HalfmoveClockHistory.Last();
+                HalfmoveClockHistory.RemoveAt(HalfmoveClockHistory.Count - 1);
+            }
+
+            // Restore previous game state (which includes EnPassant & castling)
+            if (GameStateHistory.Count > 0)
+            {
+                CurrentGameState = GameStateHistory.Last();
+                GameStateHistory.RemoveAt(GameStateHistory.Count - 1);
+                EnPassantSquare = GameState.GetEnPassantSquare(CurrentGameState);
+                CasltingRight = GameState.GetCastlingRights(CurrentGameState);
+            }
+
+            // Restore cached-check flag
+            hasCachedCheck = false;
+
+            // Restore hash from history (consistent with MakeMove/UndoMove)
+            if (hashHistory.Count > 0)
+            {
+                CurrentHash = hashHistory.Last();
+                hashHistory.RemoveAt(hashHistory.Count - 1);
+            }
+            else
+            {
+                // Fallback to LastHash if something went wrong
+                CurrentHash = LastHash;
+            }
         }
+
 
         public void MakeMove(Move move)
         {
-            int from = move.StartingSquare;
-            int to = move.TargetSquare;
-            int movingPiece = Squares[from];
-            int movingPieceType = Piece.PieceType(movingPiece);
-            int movingColor = ColorToMove;
-            int oppColor = movingColor ^ 1;
-
-            int movingBitboardIndex = BitboardHelper.GetBitboardIndex(movingPieceType, movingColor);
-            ref ulong movingBitboard = ref PiecesBitboards[movingBitboardIndex];
-            ref ulong colorBB = ref ColoredBitboards[movingColor];
-            ref ulong oppColorBB = ref ColoredBitboards[oppColor];
-            ref ulong emptyBB = ref ColoredBitboards[2];
-
-            int capturedPiece = Squares[to];
-            bool isCapture = (capturedPiece != Piece.None);
-
-            // move on squares
-            Squares[from] = Piece.None;
-            Squares[to] = movingPiece;
-
-            // update bitboards
-            BitboardHelper.MovePiece(ref movingBitboard, from, to);
-            BitboardHelper.MovePiece(ref colorBB, from, to);
-
-            // empty squares: from empty, to occupied
-            BitboardHelper.ToggleBit(ref emptyBB, from);
-            BitboardHelper.ToggleBit(ref emptyBB, to);
-
-            // castling rights update
-            const int WHITE_KINGSIDE = 1 << 0;
-            const int WHITE_QUEENSIDE = 1 << 1;
-            const int BLACK_KINGSIDE = 1 << 2;
-            const int BLACK_QUEENSIDE = 1 << 3;
-
-            if (movingPieceType == Piece.King)
+            //Console.WriteLine("Making move: " + Notation.MoveToAlgebraic(move));
+            try
             {
-                int clearMask = (movingColor == Piece.White) ? (WHITE_KINGSIDE | WHITE_QUEENSIDE)
-                                                             : (BLACK_KINGSIDE | BLACK_QUEENSIDE);
-                CasltingRight &= ~clearMask;
-            }
-            else if (movingPieceType == Piece.Rook)
-            {
-                switch (from)
-                {
-                    case 0: CasltingRight &= ~WHITE_QUEENSIDE; break;
-                    case 7: CasltingRight &= ~WHITE_KINGSIDE; break;
-                    case 56: CasltingRight &= ~BLACK_QUEENSIDE; break;
-                    case 63: CasltingRight &= ~BLACK_KINGSIDE; break;
+                int from = move.StartingSquare;
+                int to = move.TargetSquare;
+                int movingPiece = Squares[from];
+                int movingPieceType = Piece.PieceType(movingPiece);
+                int movingColor = ColorToMove;
+                int oppColor = movingColor ^ 1;
 
-                }
+                int movingBitboardIndex = BitboardHelper.GetBitboardIndex(movingPieceType, movingColor);
+                ref ulong movingBitboard = ref PiecesBitboards[movingBitboardIndex];
+                ref ulong colorBB = ref ColoredBitboards[movingColor];
+                ref ulong oppColorBB = ref ColoredBitboards[oppColor];
+                ref ulong emptyBB = ref ColoredBitboards[2];
 
-            }
+                int capturedPiece = Squares[to];
+                bool isCapture = (capturedPiece != Piece.None);
 
-            // promotion
-            if (move.IsPromotion())
-            {
-                int pawnIndex = BitboardHelper.GetBitboardIndex(Piece.Pawn, movingColor);
-                ref ulong pawnBB = ref PiecesBitboards[pawnIndex];
-                if ((pawnBB & (1UL << to)) != 0)
-                    BitboardHelper.ToggleBit(ref pawnBB, to);
+                // move on squares
+                Squares[from] = Piece.None;
+                Squares[to] = movingPiece;
 
-                int promoteType = (int)move.MoveFlag;
-                int promoteIndex = BitboardHelper.GetBitboardIndex(promoteType, movingColor);
-                ref ulong promoteBB = ref PiecesBitboards[promoteIndex];
-                BitboardHelper.ToggleBit(ref promoteBB, to);
-                Squares[to] = Piece.CreatePiece(promoteType, movingColor);
-            }
-            if (isCapture)
-            {
-                int capType = Piece.PieceType(capturedPiece);
-                int capIndex = BitboardHelper.GetBitboardIndex(capType, oppColor);
-                ref ulong capBB = ref PiecesBitboards[capIndex];
-                BitboardHelper.ToggleBit(ref capBB, to);
-                BitboardHelper.ToggleBit(ref oppColorBB, to);
+                // update bitboards
+                BitboardHelper.MovePiece(ref movingBitboard, from, to);
+                BitboardHelper.MovePiece(ref colorBB, from, to);
+
+                // empty squares: from empty, to occupied
+                BitboardHelper.ToggleBit(ref emptyBB, from);
                 BitboardHelper.ToggleBit(ref emptyBB, to);
 
-                if (capType == Piece.Rook)
+                // castling rights update
+                const int WHITE_KINGSIDE = 1 << 0;
+                const int WHITE_QUEENSIDE = 1 << 1;
+                const int BLACK_KINGSIDE = 1 << 2;
+                const int BLACK_QUEENSIDE = 1 << 3;
+
+                if (movingPieceType == Piece.King)
                 {
-                    switch (to)
+                    int clearMask = (movingColor == Piece.White) ? (WHITE_KINGSIDE | WHITE_QUEENSIDE)
+                                                                 : (BLACK_KINGSIDE | BLACK_QUEENSIDE);
+                    CasltingRight &= ~clearMask;
+                }
+                else if (movingPieceType == Piece.Rook)
+                {
+                    switch (from)
                     {
                         case 0: CasltingRight &= ~WHITE_QUEENSIDE; break;
                         case 7: CasltingRight &= ~WHITE_KINGSIDE; break;
                         case 56: CasltingRight &= ~BLACK_QUEENSIDE; break;
                         case 63: CasltingRight &= ~BLACK_KINGSIDE; break;
+
+                    }
+
+                }
+
+                // promotion
+                if (move.IsPromotion())
+                {
+                    int pawnIndex = BitboardHelper.GetBitboardIndex(Piece.Pawn, movingColor);
+                    ref ulong pawnBB = ref PiecesBitboards[pawnIndex];
+                    if ((pawnBB & (1UL << to)) != 0)
+                        BitboardHelper.ToggleBit(ref pawnBB, to);
+
+                    int promoteType = (int)move.MoveFlag;
+                    int promoteIndex = BitboardHelper.GetBitboardIndex(promoteType, movingColor);
+                    ref ulong promoteBB = ref PiecesBitboards[promoteIndex];
+                    BitboardHelper.ToggleBit(ref promoteBB, to);
+                    Squares[to] = Piece.CreatePiece(promoteType, movingColor);
+                }
+                if (isCapture)
+                {
+                    int capType = Piece.PieceType(capturedPiece);
+                    int capIndex = BitboardHelper.GetBitboardIndex(capType, oppColor);
+                    ref ulong capBB = ref PiecesBitboards[capIndex];
+                    BitboardHelper.ToggleBit(ref capBB, to);
+                    BitboardHelper.ToggleBit(ref oppColorBB, to);
+                    BitboardHelper.ToggleBit(ref emptyBB, to);
+
+                    if (capType == Piece.Rook)
+                    {
+                        switch (to)
+                        {
+                            case 0: CasltingRight &= ~WHITE_QUEENSIDE; break;
+                            case 7: CasltingRight &= ~WHITE_KINGSIDE; break;
+                            case 56: CasltingRight &= ~BLACK_QUEENSIDE; break;
+                            case 63: CasltingRight &= ~BLACK_KINGSIDE; break;
+                        }
                     }
                 }
-            }
-            // en-passant
-            else if (move.MoveFlag == MoveFlag.EnPassant)
-            {
-                int epCapturedSquare = to + (movingColor == Piece.White ? -8 : 8);
-                Squares[epCapturedSquare] = Piece.None;
-                int capturedPawnIndex = BitboardHelper.GetBitboardIndex(Piece.Pawn, oppColor);
-                ref ulong capturedPawnBB = ref PiecesBitboards[capturedPawnIndex];
-                BitboardHelper.ToggleBit(ref capturedPawnBB, epCapturedSquare);
-                BitboardHelper.ToggleBit(ref oppColorBB, epCapturedSquare);
-                BitboardHelper.ToggleBit(ref emptyBB, epCapturedSquare);
-                isCapture = true;
-                capturedPiece = Piece.CreatePiece(Piece.Pawn, oppColor);
-            }
-            else if (move.IsCastle())
-            {
-                int rookFrom = (move.MoveFlag == MoveFlag.CastleShort) ? to + 1 : to - 2;
-                int rookTo = (move.MoveFlag == MoveFlag.CastleShort) ? to - 1 : to + 1;
-                int rookIndex = BitboardHelper.GetBitboardIndex(Piece.Rook, movingColor);
-                ref ulong rookBB = ref PiecesBitboards[rookIndex];
-                int rookPiece = Squares[rookFrom];
-                Squares[rookFrom] = Piece.None;
-                Squares[rookTo] = rookPiece;
-                BitboardHelper.MovePiece(ref rookBB, rookFrom, rookTo);
-                BitboardHelper.MovePiece(ref colorBB, rookFrom, rookTo);
-                BitboardHelper.ToggleBit(ref emptyBB, rookFrom);
-                BitboardHelper.ToggleBit(ref emptyBB, rookTo);
-                int clrMask = (movingColor == Piece.White) ? (WHITE_KINGSIDE | WHITE_QUEENSIDE)
-                                                           : (BLACK_KINGSIDE | BLACK_QUEENSIDE);
-                CasltingRight &= ~clrMask;
-            }
+                // en-passant
+                else if (move.MoveFlag == MoveFlag.EnPassant)
+                {
+                    int epCapturedSquare = to + (movingColor == Piece.White ? -8 : 8);
+                    Squares[epCapturedSquare] = Piece.None;
+                    int capturedPawnIndex = BitboardHelper.GetBitboardIndex(Piece.Pawn, oppColor);
+                    ref ulong capturedPawnBB = ref PiecesBitboards[capturedPawnIndex];
+                    BitboardHelper.ToggleBit(ref capturedPawnBB, epCapturedSquare);
+                    BitboardHelper.ToggleBit(ref oppColorBB, epCapturedSquare);
+                    BitboardHelper.ToggleBit(ref emptyBB, epCapturedSquare);
+                    isCapture = true;
+                    capturedPiece = Piece.CreatePiece(Piece.Pawn, oppColor);
+                }
+                else if (move.IsCastle())
+                {
+                    int rookFrom = (move.MoveFlag == MoveFlag.CastleShort) ? to + 1 : to - 2;
+                    int rookTo = (move.MoveFlag == MoveFlag.CastleShort) ? to - 1 : to + 1;
+                    int rookIndex = BitboardHelper.GetBitboardIndex(Piece.Rook, movingColor);
+                    ref ulong rookBB = ref PiecesBitboards[rookIndex];
+                    int rookPiece = Squares[rookFrom];
+                    Squares[rookFrom] = Piece.None;
+                    Squares[rookTo] = rookPiece;
+                    BitboardHelper.MovePiece(ref rookBB, rookFrom, rookTo);
+                    BitboardHelper.MovePiece(ref colorBB, rookFrom, rookTo);
+                    BitboardHelper.ToggleBit(ref emptyBB, rookFrom);
+                    BitboardHelper.ToggleBit(ref emptyBB, rookTo);
+                    int clrMask = (movingColor == Piece.White) ? (WHITE_KINGSIDE | WHITE_QUEENSIDE)
+                                                               : (BLACK_KINGSIDE | BLACK_QUEENSIDE);
+                    CasltingRight &= ~clrMask;
+                }
 
-            EnPassantSquare = 0;
-            if (move.MoveFlag == MoveFlag.DoublePawnPush)
-                EnPassantSquare = to + (movingColor == Piece.White ? -8 : 8);
+                EnPassantSquare = 0;
+                if (move.MoveFlag == MoveFlag.DoublePawnPush)
+                    EnPassantSquare = to + (movingColor == Piece.White ? -8 : 8);
 
-            HalfmoveClock++;
-            if (movingPieceType == Piece.Pawn || isCapture)
-                HalfmoveClock = 0;
+                HalfmoveClock++;
+                if (movingPieceType == Piece.Pawn || isCapture)
+                    HalfmoveClock = 0;
 
-            GameStateHistory.Add(CurrentGameState);
-            CurrentGameState = 0;
-            CurrentGameState = GameState.MakeGameState(capturedPiece, movingPiece, EnPassantSquare, CasltingRight);
-            ColorToMove = oppColor;
-            HalfmoveClockHistory.Add(HalfmoveClock);
-            plyCount++;
-            hasCachedCheck = false;
-            hashHistory.Add(CurrentHash);
-            CurrentHash = Zobrist.ComputeHash(this);
-            if (!repetitionCounts.ContainsKey(CurrentHash))
-                repetitionCounts[CurrentHash] = 1;
-            else
-                repetitionCounts[CurrentHash]++;
+                GameStateHistory.Add(CurrentGameState);
+                CurrentGameState = GameState.MakeGameState(capturedPiece, movingPiece, EnPassantSquare, CasltingRight);
+                ColorToMove = oppColor;
+                HalfmoveClockHistory.Add(HalfmoveClock);
+                plyCount++;
+                hasCachedCheck = false;
+                hashHistory.Add(CurrentHash);
+                CurrentHash = Zobrist.ComputeHash(this);
+                if (!repetitionCounts.ContainsKey(CurrentHash))
+                    repetitionCounts[CurrentHash] = 1;
+                else
+                    repetitionCounts[CurrentHash]++;
+            }
+            catch {
+                BoardHelper.PrintBoard(this);
+                Console.WriteLine("Move: " + Notation.MoveToAlgebraic(move));
+
+                for (int i = 0; i < 12; i++)
+                {
+                    Console.WriteLine($"Bitboard {i}");//: {Convert.ToString((long)PiecesBitboards[i], 2).PadLeft(64, '0')}");
+                    BitboardHelper.PrintBitboard(PiecesBitboards[i]);
+                }
+
+                throw new TimeZoneNotFoundException("Exception in MakeMove");
+
+            }
         }
      
 
         public void UndoMove(Move move)
         {
+            //Console.WriteLine("Undoing move: " + Notation.MoveToAlgebraic(move));
+            //BoardHelper.PrintBoard(this);
             if (repetitionCounts.ContainsKey(CurrentHash))
             {
                 repetitionCounts[CurrentHash]--;
@@ -343,6 +425,128 @@ namespace Michael.src
                 BitboardHelper.MovePiece(ref rookBitboard, rookStartSquare, rookTargetSquare);
                 BitboardHelper.MovePiece(ref ColoredBitboards[moverColor], rookStartSquare, rookTargetSquare);
                 BitboardHelper.MovePiece(ref ColoredBitboards[2], rookStartSquare, rookTargetSquare);
+            }
+        }
+
+        public void MakeCapture(Move move)
+        {
+            int from = move.StartingSquare;
+            int to = move.TargetSquare;
+            int movingPiece = Squares[from];
+            int movingPieceType = Piece.PieceType(movingPiece);
+            int movingColor = ColorToMove;
+            int oppColor = movingColor ^ 1;
+
+            int movingBitboardIndex = BitboardHelper.GetBitboardIndex(movingPieceType, movingColor);
+            ref ulong movingBitboard = ref PiecesBitboards[movingBitboardIndex];
+            ref ulong colorBB = ref ColoredBitboards[movingColor];
+            ref ulong oppColorBB = ref ColoredBitboards[oppColor];
+            ref ulong emptyBB = ref ColoredBitboards[2];
+
+            int capturedPiece = Squares[to];
+            bool isCapture = (capturedPiece != Piece.None);
+
+            // move on squares
+            Squares[from] = Piece.None;
+            Squares[to] = movingPiece;
+
+            // update bitboards
+            BitboardHelper.MovePiece(ref movingBitboard, from, to);
+            BitboardHelper.MovePiece(ref colorBB, from, to);
+
+            // empty squares: from empty, to occupied
+            BitboardHelper.ToggleBit(ref emptyBB, from);
+            BitboardHelper.ToggleBit(ref emptyBB, to);
+
+            // promotion
+            if (move.IsPromotion())
+            {
+                int pawnIndex = BitboardHelper.GetBitboardIndex(Piece.Pawn, movingColor);
+                ref ulong pawnBB = ref PiecesBitboards[pawnIndex];
+                if ((pawnBB & (1UL << to)) != 0)
+                    BitboardHelper.ToggleBit(ref pawnBB, to);
+
+                int promoteType = (int)move.MoveFlag;
+                int promoteIndex = BitboardHelper.GetBitboardIndex(promoteType, movingColor);
+                ref ulong promoteBB = ref PiecesBitboards[promoteIndex];
+                BitboardHelper.ToggleBit(ref promoteBB, to);
+                Squares[to] = Piece.CreatePiece(promoteType, movingColor);
+            }
+            if (isCapture)
+            {
+                int capType = Piece.PieceType(capturedPiece);
+                int capIndex = BitboardHelper.GetBitboardIndex(capType, oppColor);
+                ref ulong capBB = ref PiecesBitboards[capIndex];
+                BitboardHelper.ToggleBit(ref capBB, to);
+                BitboardHelper.ToggleBit(ref oppColorBB, to);
+                BitboardHelper.ToggleBit(ref emptyBB, to);
+            }
+
+            GameStateHistory.Add(CurrentGameState);
+            CurrentGameState = GameState.MakeGameState(capturedPiece, movingPiece, EnPassantSquare, CasltingRight);
+            ColorToMove = oppColor;
+            hasCachedCheck = false;
+        }
+
+
+        public void UndoCapture(Move move)
+        {
+
+            int movingPiece = GameState.MovingPiece(CurrentGameState);
+            int movingPieceType = Piece.PieceType(movingPiece);
+            int capturedPiece = GameState.CapturedPiece(CurrentGameState);
+
+            ColorToMove ^= 1; // flip back first so ColorToMove = side that moved
+            int moverColor = ColorToMove;
+
+            // undo promotion separately
+            if (move.IsPromotion())
+            {
+                int promoteType = move.MoveFlag;
+                int promoteIndex = BitboardHelper.GetBitboardIndex(promoteType, moverColor);
+
+                ref ulong promoteBB = ref PiecesBitboards[promoteIndex];
+                if ((promoteBB & (1UL << move.TargetSquare)) != 0)
+                    BitboardHelper.ToggleBit(ref promoteBB, move.TargetSquare);
+
+                int pawnIndex = BitboardHelper.GetBitboardIndex(Piece.Pawn, moverColor);
+                ref ulong pawnBB = ref PiecesBitboards[pawnIndex];
+                BitboardHelper.ToggleBit(ref pawnBB, move.StartingSquare);
+
+                Squares[move.StartingSquare] = Piece.CreatePiece(Piece.Pawn, moverColor);
+                Squares[move.TargetSquare] = Piece.None;
+
+                BitboardHelper.ToggleBit(ref ColoredBitboards[moverColor], move.TargetSquare);
+                BitboardHelper.ToggleBit(ref ColoredBitboards[moverColor], move.StartingSquare);
+                BitboardHelper.ToggleBit(ref ColoredBitboards[2], move.StartingSquare);
+                BitboardHelper.ToggleBit(ref ColoredBitboards[2], move.TargetSquare);
+            }
+            else
+            {
+                int movingBitboardIndex = BitboardHelper.GetBitboardIndex(movingPieceType, moverColor);
+
+                ref ulong movingBitboard = ref PiecesBitboards[movingBitboardIndex];
+                Squares[move.TargetSquare] = Piece.None;
+                Squares[move.StartingSquare] = movingPiece;
+                BitboardHelper.MovePiece(ref movingBitboard, move.TargetSquare, move.StartingSquare);
+                BitboardHelper.MovePiece(ref ColoredBitboards[moverColor], move.TargetSquare, move.StartingSquare);
+                BitboardHelper.MovePiece(ref ColoredBitboards[2], move.StartingSquare, move.TargetSquare);
+            }
+
+            CurrentGameState = GameStateHistory.Last();
+            GameStateHistory.RemoveAt(GameStateHistory.Count - 1);
+            hasCachedCheck = false;
+
+            if (capturedPiece != Piece.None)
+            {
+                int capturedPieceType = Piece.PieceType(capturedPiece);
+                int capturedBitboardIndex = BitboardHelper.GetBitboardIndex(capturedPieceType, moverColor ^ 1);
+                ref ulong capturedBitboard = ref PiecesBitboards[capturedBitboardIndex];
+                BitboardHelper.ToggleBit(ref ColoredBitboards[2], move.TargetSquare);
+                BitboardHelper.ToggleBit(ref capturedBitboard, move.TargetSquare);
+                BitboardHelper.ToggleBit(ref ColoredBitboards[moverColor ^ 1], move.TargetSquare);
+                Squares[move.TargetSquare] = capturedPiece;
+                return;
             }
         }
     }

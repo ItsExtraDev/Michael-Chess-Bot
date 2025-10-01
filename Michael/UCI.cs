@@ -76,7 +76,7 @@ public class UCI
                         return; // Exit after perft test
                     }
                 }
-                ProcessGoCommand(); // Normal move calculation
+                ProcessGoCommand(tokens); // Normal move calculation
                 break;
 
             // --- Stop the engine's search ---
@@ -119,7 +119,7 @@ public class UCI
     /// Currently only supports timed search per move.
     /// TODO: Implement proper time management based on remaining game time.
     /// </summary>
-    private void ProcessGoCommand()
+    private void ProcessGoCommand(string[] command)
     {
         if (player.UseMaxTimePerMove)
         {
@@ -127,8 +127,33 @@ public class UCI
         }
         else
         {
+            int timeRemainingWhiteMs = 0;
+            int timeRemainingBlackMs = 0;
+            int incrementWhiteMs = 0;
+            int incrementBlackMs = 0;
+            for (int i = 0; i < command.Length; i++)
+            {
+                if (command[i] == "wtime")
+                {
+                    timeRemainingWhiteMs = int.Parse(command[i + 1]);
+                }
+                else if (command[i] == "btime")
+                {
+                    timeRemainingBlackMs = int.Parse(command[i + 1]);
+                }
+                else if (command[i] == "winc")
+                {
+                    incrementWhiteMs = int.Parse(command[i + 1]);
+                }
+                else if (command[i] == "binc")
+                {
+                    incrementBlackMs = int.Parse(command[i + 1]);
+                }
+            }
+
+            int thinkTime = player.ChooseThinkTime(timeRemainingWhiteMs, timeRemainingBlackMs, incrementWhiteMs, incrementBlackMs);
             // For now, also use max time per move if no time control specified
-            player.StartThinkingTimed(player.MaxTimePerMoveInMS);
+            player.StartThinkingTimed(thinkTime);
         }
     }
 

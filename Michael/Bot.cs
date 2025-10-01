@@ -1,4 +1,5 @@
-﻿using Michael.src.Helpers;
+﻿using Michael.src;
+using Michael.src.Helpers;
 using Michael.src.Search;
 
 namespace Michael
@@ -14,7 +15,7 @@ namespace Michael
         /// <summary>
         /// If true, the bot will always use the maximum allowed time per move.
         /// </summary>
-        public bool UseMaxTimePerMove = true;
+        public bool UseMaxTimePerMove = false;
 
         /// <summary>
         /// Maximum time to think per move in milliseconds.
@@ -59,6 +60,29 @@ namespace Michael
             searcher.OnSearchComplete += OnSearchComplete;
         }
 
+        public int ChooseThinkTime(int timeRemainingWhiteMs, int timeRemainingBlackMs, int incrementWhiteMs, int incrementBlackMs)
+        {
+            Board board = MatchManager.board;
+
+            int myTimeRemainingMs = board.IsWhiteToMove ? timeRemainingWhiteMs : timeRemainingBlackMs;
+            int myIncrementMs = board.IsWhiteToMove ? incrementWhiteMs : incrementBlackMs;
+            // Get a fraction of remaining time to use for current move
+            double thinkTimeMs = myTimeRemainingMs / 40.0;
+            // Clamp think time if a maximum limit is imposed
+            if (UseMaxTimePerMove)
+            {
+                thinkTimeMs = Math.Min(MaxTimePerMoveInMS, thinkTimeMs);
+            }
+            // Add increment
+            if (myTimeRemainingMs > myIncrementMs * 2)
+            {
+                thinkTimeMs += myIncrementMs * 0.8;
+            }
+
+            double minThinkTime = Math.Min(50, myTimeRemainingMs * 0.25);
+            return (int)Math.Ceiling(Math.Max(minThinkTime, thinkTimeMs));
+        }
+
         /// <summary>
         /// Starts thinking for a limited time (timed search).
         /// Cancels any previous ongoing search.
@@ -71,8 +95,8 @@ namespace Michael
             // Cancel any previous search
             cancelSearchTimer?.Cancel();
 
-            // Start a new search with the specified time limit
-            StartNewSearch(timeToThinkMS);
+                // Start a new search with the specified time limit
+                StartNewSearch(timeToThinkMS);
         }
 
         /// <summary>

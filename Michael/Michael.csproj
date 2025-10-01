@@ -6,7 +6,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <BaseOutputPath>C:\Users\Moty\OneDrive\Desktop\Coding\Chess Engine\Michael\Versions\V1.9 passed pawn</BaseOutputPath>
+    <BaseOutputPath>C:\Users\Moty\OneDrive\Desktop\Coding\Chess Engine\Michael\Versions\V1.19 mate oruning</BaseOutputPath>
   </PropertyGroup>
 
 </Project>

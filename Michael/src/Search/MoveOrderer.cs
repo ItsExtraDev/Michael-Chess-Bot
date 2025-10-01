@@ -1,6 +1,4 @@
-﻿using Michael.src.Helpers;
-
-namespace Michael.src.Search
+﻿namespace Michael.src.Search
 {
     public class MoveOrderer
     {
@@ -49,6 +47,16 @@ namespace Michael.src.Search
             }
         }
 
+        /// <summary>
+        /// When using alpha beta pruning, it it important to look at good moves early on, as the earlier we look at them, the faster we can prune.
+        /// which mean the higher depth we can look at.
+        /// This function orders the moves so that the best moves are looked at first using techniques such as:
+        /// - MMV LVA
+        /// - Killer moves
+        /// - History heuristic
+        /// - Principal variation move
+        /// more information about move ordering can be found here: https://www.chessprogramming.org/Move_Ordering
+        /// </summary>
         public Move[] OrderMoves(Move[] legalMoves, Move pvMove, int plyFromRoot)
         {
             board = MatchManager.board;

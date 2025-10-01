@@ -1,6 +1,4 @@
-﻿using System.Reflection.Metadata.Ecma335;
-
-namespace Michael.src
+﻿namespace Michael.src
 {
     /// <summary>
     /// Provides constants and utility methods for representing and manipulating chess pieces.

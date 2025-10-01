@@ -1,6 +1,4 @@
-﻿using System.Drawing;
-
-namespace Michael.src.Search
+﻿namespace Michael.src.Search
 {
     public static class TT
     {

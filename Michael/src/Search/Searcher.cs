@@ -23,7 +23,6 @@ namespace Michael.src.Search
         //Refrances
         readonly Evaluator evaluator;
         readonly MoveOrderer moveOrderer;
-        readonly StaticExchangeEvaluator staticExchangeEvaluator;
 
         // PV storage
         private Move[,] pvMoves = new Move[256, 256]; // [ply,depth]
@@ -46,7 +45,6 @@ namespace Michael.src.Search
             board = MatchManager.board;
             evaluator = new Evaluator();
             moveOrderer = new MoveOrderer();
-            staticExchangeEvaluator = new StaticExchangeEvaluator();
         }
 
         public void EndSearch()
@@ -75,6 +73,7 @@ namespace Michael.src.Search
         /// ilerative deepening means we search depth 1, then depth 2, then depth 3, etc. until we reach the max depth or the search is cancelled.
         /// this means that it doesn't matter when the search is cancelled, we will always have a best move from the last completed iteration.
         /// it may seem slow and inefficent, but it is actually faster in practice due to better move ordering and the ability to use aspiration windows.
+        /// more info can be found at: https://www.chessprogramming.org/Iterative_Deepening
         /// </summary>
         private void StartIlliterateDeepeningSearch()
         {
@@ -177,6 +176,11 @@ namespace Michael.src.Search
         }
 
 
+        /// <summary>
+        /// Perform a negamax search with alpha-beta pruning, null-move pruning, late move reductions, and quiescence search.
+        /// negamax is an improved of minimax where the score is always from the perspective of the side to move.
+        /// more info can be found at: https://www.chessprogramming.org/Negamax
+        /// </summary>
         private int Search(int depth, int alpha, int beta, int plyFromRoot, int numExt = 0)
         {
             if (searchCancelled && Depth > 1)
@@ -196,6 +200,7 @@ namespace Michael.src.Search
                 return 0;
             }
 
+            //If the depth is 0, we go to quiescence search
             if (depth <= 0)
             {
                 return Quiesce(alpha, beta);
@@ -203,6 +208,7 @@ namespace Michael.src.Search
 
             Move ttMove = Move.NullMove;
 
+            //Try to get the best move from the transposition table
             if (TT.TryGetEntry(TranspositionTable, board.CurrentHash, out var entry))
             {
                 //even if we did a search but the result if from a lesser depth, it is irrelevent to us. don't use the result.
@@ -239,11 +245,13 @@ namespace Michael.src.Search
                 }
             }
 
+            //Order the move
             legalMoves = moveOrderer.OrderMoves(legalMoves, depth == Depth ? bestMove : ttMove, plyFromRoot);
 
             Move bestMoveAtNode = Move.NullMove;
             int bestScore = NegativeInfinity;
 
+            //Loop over all the moves in the board. evaluate them and choose the best one.
             for (int moveIndex = 0; moveIndex < legalMoves.Length; moveIndex++)
             {
                 if (searchCancelled && Depth > 1)
@@ -344,6 +352,12 @@ namespace Michael.src.Search
             return bestScore;
         }
 
+        /// <summary>
+        /// Quiescence is built like the main search, but only considers captures.
+        /// this avoid evaluating positions where a capture is pending, which can lead to the horizon effect.
+        /// the horizon effect is when the engine misses a tactic because it is just beyond the search depth.
+        /// more information can be found at: https://www.chessprogramming.org/Quiescence_Search
+        /// </summary>
         private int Quiesce(int alpha, int beta)
         {
             if (searchCancelled && Depth > 1)

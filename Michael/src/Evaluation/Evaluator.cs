@@ -1,5 +1,4 @@
-﻿using Michael.src.Helpers;
-using System.Numerics;
+﻿using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace Michael.src.Evaluation
@@ -35,6 +34,14 @@ namespace Michael.src.Evaluation
             kingSafety = new KingSafety();
         }
 
+        /// <summary>
+        /// Evaluate the current board position and return a score.
+        /// using method such as:
+        /// - Material
+        /// - early / end game piece square tables.
+        ///  - Pawn structure (doubled, isolated, passed pawns etc)
+        ///  - King safety
+        /// </summary>
         public int Evaluate()
         {
             board = MatchManager.board;
@@ -90,6 +97,7 @@ namespace Michael.src.Evaluation
             return material;
         }
 
+        //calculate the game phase based on the pieces remaining on the board
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int CalculatePhase(Board b)
         {

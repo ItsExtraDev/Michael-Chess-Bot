@@ -1,7 +1,4 @@
 ﻿using Michael.src.Helpers;
-using Michael.src.MoveGen;
-using System;
-using System.Diagnostics.Metrics;
 
 namespace Michael.src
 {

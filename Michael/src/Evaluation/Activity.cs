@@ -1,8 +1,5 @@
 ﻿using Michael.src;
-using System;
-using System.Linq;
 using System.Numerics;
-using System.Runtime.CompilerServices;
 
 public class Activity
 {
@@ -118,6 +115,9 @@ public class Activity
     private static readonly int[] Mirror = Enumerable.Range(0, 64)
         .Select(sq => 63 - sq).ToArray();
 
+    /// <summary>
+    /// Evaluates the piece-square tables for all pieces on the board in the middlegame phase.
+    /// </summary>
     public int EvaluatePieceSquaresMG(Board b)
     {
         int eval = 0;
@@ -143,6 +143,9 @@ public class Activity
         return eval;
     }
 
+    /// <summary>
+    /// Evaluates the piece-square tables for all pieces on the board in the endgame phase.
+    /// </summary>
     public int EvaluatePieceSquaresEG(Board b)
     {
         int eval = 0;

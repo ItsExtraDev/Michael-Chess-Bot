@@ -1,5 +1,4 @@
-﻿using Michael.src.MoveGen;
-using System.Numerics;
+﻿using System.Numerics;
 
 namespace Michael.src.Helpers
 {
